@@ -1,6 +1,7 @@
 use crate::clay::vm::{error::set_unsetable, keys, Code};
 use super::{undef::undef, Cross, Var};
 
+#[derive(Debug)]
 pub struct Func{
     code:Vec<Code>,
 }
