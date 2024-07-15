@@ -1,0 +1,1 @@
+pub const CLASS:&str = "--class--";

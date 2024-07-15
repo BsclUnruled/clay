@@ -11,13 +11,13 @@ impl Var for Undef {
             _=>vm::error::throw(&format!("Error:读取undef的属性{}",name))
         }
     }
-    fn set(&self, name:&str, value:super::Cross) {
+    fn set(&self, name:&str, _:super::Cross) {
         vm::error::throw(&format!("Error:尝试设置undef的属性{}",name))
     }
 }
 
 thread_local! {
-    static UD:super::Cross = super::to_cross(Undef());
+    static UD:super::Cross = super::to_cross(Box::new(Undef()));
 }
 
 pub fn undef() -> super::Cross {
