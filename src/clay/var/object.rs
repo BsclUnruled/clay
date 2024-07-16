@@ -14,6 +14,7 @@ impl Object {
         let mut core = HashMap::new();
 
         core.insert(keys::CLASS.to_string(),ctor());
+        core.insert(keys::SUPER.to_string(),undef());
 
         Object{
             this:RefCell::new(core)

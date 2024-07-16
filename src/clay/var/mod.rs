@@ -3,6 +3,7 @@ use std::cell::Cell;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
+use int::Int;
 use undef::undef;
 
 use super::vm::gc::Mark;
