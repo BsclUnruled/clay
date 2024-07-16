@@ -3,7 +3,7 @@ use crate::clay::vm;
 use super::Var;
 
 #[derive(Debug)]
-pub(crate) struct Undef();
+struct Undef();
 
 impl Var for Undef {
     fn get(&self, name:&str)->super::Cross {

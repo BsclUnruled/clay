@@ -1,6 +1,9 @@
 use crate::clay::vm::{error::set_unsetable, keys, Code};
 use super::{undef::undef, Cross, Var};
 
+pub type Function = 
+    &'static dyn Fn(Args)->Cross;
+
 #[derive(Debug)]
 pub struct Func{
     code:Vec<Code>,
@@ -19,15 +22,15 @@ impl Var for Func{
 }
 
 pub struct Args{
-    args:Vec<Cross>,
-    caller:Cross,
+    pub(crate) args:Vec<Cross>,
+    pub(crate) caller:Cross,
 }
 
 impl Args{
     pub fn new(args:Vec<Cross>, caller:Cross)->Self{
         Self{args,caller}
     }
-    pub fn ctor(_:&Args)->Cross{
+    pub fn ctor(_:Args)->Cross{
         super::to_cross(Box::new(Self::new(vec![], undef())))
     }
     pub fn get_args(&self)->&Vec<Cross>{
@@ -49,14 +52,14 @@ impl Var for Args{
 }
 
 pub struct Native{
-    func:&'static dyn Fn(&Args)->Cross
+    func:Function
 }
 
 impl Native{
-    pub fn new(func:&'static dyn Fn(&Args)->Cross)->Box<Self>{
+    pub fn new(func:Function)->Box<Self>{
         Box::new(Self{func})
     }
-    pub fn call(&self,args:&Args)->Cross{
+    pub fn call(&self,args:Args)->Cross{
         (self.func)(args)
     }
 }
@@ -78,11 +81,11 @@ thread_local! {
     static ARGS_CTOR:Cross = super::to_cross(Native::new(&Args::ctor));
 }
 
-pub fn new_ctor(func:&'static dyn Fn(&Args)->Cross)->Cross{
+pub fn new_ctor(func:Function)->Cross{
     super::to_cross(Native::new(func))
 }
 
-fn func_ctor(_:&Args)->Cross{
+fn func_ctor(_:Args)->Cross{
     super::to_cross(Box::new(Func{code:vec![]}))
 }
 

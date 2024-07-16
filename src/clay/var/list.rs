@@ -1,7 +1,7 @@
 use crate::clay::vm::error;
 use std::cell::RefCell;
-use super::{func::Args, undef::undef, Cross, Var, VarBox};
-use std::rc::Rc;
+use super::{func::Args, undef::undef, Cross, Var};
+
 
 struct List{
     pub(crate) data:RefCell<Vec<Cross>>
@@ -13,10 +13,12 @@ impl List{
             data:RefCell::new(v)
         }
     }
-    fn ctor(args:&Args)->Cross{
-        let v = args.get_args().clone();
-        Rc::new(
-            VarBox::new(Box::new(List::new(v)))
+    fn ctor(args:Args)->Cross{
+        //解构Arg
+
+        let v:Vec<Cross> = args.args;
+        Cross::new(
+            Box::new(List::new(v))
         )
     }
 }
