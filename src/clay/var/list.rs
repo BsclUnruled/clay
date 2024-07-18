@@ -1,22 +1,24 @@
 use crate::clay::vm::error;
 use std::cell::RefCell;
 use super::{func::Args, undef::undef, Cross, Var};
+use crate::clay::vm::Eval;
 
-
-struct List{
+pub struct List{
     pub(crate) data:RefCell<Vec<Cross>>
 }
 
 impl List{
-    fn new(v:Vec<Cross>)->Self{
+    pub fn new(v:Vec<Cross>)->Self{
         Self{
             data:RefCell::new(v)
         }
     }
-    fn ctor(args:Args)->Cross{
+    pub fn ctor(args:Args)->Cross{
         //解构Arg
 
-        let v:Vec<Cross> = args.args;
+        let v:Vec<Cross> = args.args.into_iter().map(|code|{
+            code.eval()
+        }).collect();
         Cross::new(
             Box::new(List::new(v))
         )

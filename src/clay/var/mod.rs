@@ -3,7 +3,6 @@ use std::cell::Cell;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
-use int::Int;
 use undef::undef;
 
 use super::vm::gc::Mark;
@@ -14,6 +13,9 @@ pub mod list;
 pub mod undef;
 pub mod object;
 pub mod int;
+pub mod boolean;
+pub mod float;
+pub mod string;
 
 pub trait Var: Any {
     fn get(&self, name: &str) -> Cross;
