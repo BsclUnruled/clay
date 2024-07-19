@@ -1,28 +1,41 @@
-use super::{Cross, Var};
+use crate::clay::vm::{signal::Signal, Code};
 
-pub mod args;
-pub mod coro;
-pub mod native;
+use super::{Cross, ToCross};
+
+//pub mod args;
+//pub mod coro;
+//pub mod native;
 pub mod script;
 
-pub use args::Args;
+//pub use args::Args;
 //use coro::CodeRunner;
 pub use script::Script;
-pub use native::Native;
+//pub use native::Native;
+
+pub type Args<'l> = &'l [Code];
 
 pub type Function = 
-    &'static dyn Fn(args::Args)->Cross;
+    &'static dyn Fn(Args)->Signal;
 
 thread_local! {
-    static CTOR:Cross = super::to_cross(Native::new(&func_ctor));
+    static CTOR:Cross = Func::Native(&func_ctor).to_cross();
 }
 
 pub fn new_ctor(func:Function)->Cross{
-    super::to_cross(Native::new(func))
+    Func::Native(func).to_cross()
 }
 
-fn func_ctor(_:args::Args)->Cross{
-    super::to_cross(Box::new(Script::new(vec![],None,vec![])))
+// pub fn from_lambda(lam:&impl Fn(Args)->Cross)->Cross{
+//     Func::Native(Box::leak(
+//         Box::new(lam)
+//     )).to_cross()
+// }
+
+
+fn func_ctor(_:Args)->Signal{
+    Script::new(vec![],None,vec![])
+        .to_cross()
+        .into()
 }
 
 pub fn ctor()->Cross{
@@ -30,30 +43,14 @@ pub fn ctor()->Cross{
 }
 
 pub enum Func{
-    Native(Native),
+    Native(Function),
     Script(Script),
 }
 
-impl Var for Func{
-    fn get(&self, name: &str) -> Cross {
-        match self {
-            Func::Native(n) => n.get(name),
-            Func::Script(s) => s.get(name),
-        }
-    }
-
-    fn set(&self, name: &str, value: Cross) {
-        match self {
-            Self::Native(n) => n.set(name, value),
-            Self::Script(s) => s.set(name, value),
-        }
-    }
-}
-
 impl Func{
-    pub fn call(&self, args: Args) -> Cross {
+    pub fn call(&self, args: Args) -> Signal{
         match self {
-            Func::Native(n) => n.call(args),
+            Func::Native(n) => n(args),
             Func::Script(s) => s.call(args),
         }
     }

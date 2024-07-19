@@ -1,7 +1,9 @@
 use crate::clay::vm::keys;
+use crate::clay::vm::signal::Signal;
 
 use super::func::Args;
-use super::{undef::undef, Cross, Var};
+use super::ToCross;
+use super::{undef::undef, Cross};
 use std::collections::HashMap;
 use std::cell::RefCell;
 
@@ -20,22 +22,8 @@ impl Object {
             this:RefCell::new(core)
         }
     }
-    pub fn ctor(_:Args)->Cross{
-        super::to_cross(Box::new(Object::new()))
-    }
-}
-
-impl Var for Object {
-    fn get(&self, name: &str) -> Cross {
-        match self.this.borrow().get(name) {
-            Some(v) => v.clone(),
-            None => undef()
-        }
-    }
-    fn set(&self, name: &str, value: Cross) {
-        self.this
-            .borrow_mut()
-            .insert(name.to_string(), value.clone());
+    pub fn ctor(_:Args)->Signal{
+        Object::new().to_cross().into()
     }
 }
 

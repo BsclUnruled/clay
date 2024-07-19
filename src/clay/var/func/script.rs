@@ -1,6 +1,6 @@
-use crate::clay::{var::{list, to_cross, undef::undef, Cross, Var}, vm::{env, error::set_unsetable, keys, Code}};
-use super::{ctor, Args};
-use crate::clay::vm::Eval;
+use crate::clay::{var::{array::{self, Array},undef::undef, Cross}, vm::{env, signal::{Abort, Signal}, Code}};
+use super::Args;
+use crate::clay::var::ToCross;
 
 #[derive(Debug)]
 pub struct Script{
@@ -10,29 +10,28 @@ pub struct Script{
 }
 
 impl Script{
-    pub fn call(&self,args:Args)->Cross{
+    pub fn call(&self,args:Args)->Signal{
         env::new_scope(||{
-            for index in 0..self.args_name.len(){
-                env::def_var(&self.args_name[index],args.at(index).clone())
+            for index in 0..(
+                if self.args_name.len() > args.len(){args.len()}else{self.args_name.len()}
+            ){
+                env::def_var(&self.args_name[index],args[index].eval()?)
             }
             match &self.rest{
                 Some(name)=>{
                     env::def_var(name,{
-                        if args.args.len()<self.args_name.len(){
-                            to_cross(Box::new(list::List::new(vec![])))
+                        if args.len()<self.args_name.len(){
+                            Array::new(vec![]).to_cross()
                         }else{
-                            to_cross(Box::new(list::List::new(
-                                args.args[self.args_name.len()..]
-                                    .into_iter()
-                                    .map(|code|{code.eval()})
-                                    .collect()
-                            )))
+                            array::Array::new(
+                                build(&args[self.args_name.len()..])?
+                            ).to_cross()
                         }
                     });
                 },
                 None=>()
             }
-            let mut result = undef();
+            let mut result = undef().into();
             for code in &self.code{
                 result = code.eval();
             }
@@ -48,14 +47,18 @@ impl Script{
     }
 }
 
-impl Var for Script{
-    fn get(&self, name:&str)->Cross {
-        match name{
-            keys::CLASS=>ctor(),
-            _=>undef()
-        }
-    }
-    fn set(&self, name:&str, _:Cross) {
-        set_unsetable("Func", name)
-    }
+fn build(args:Args)->Result<Vec<Cross>,Abort>{
+    let hc = args.into_iter()
+        .fold(Ok(Vec::with_capacity(args.len())),|acc,arg|{
+            match acc{
+                Ok(mut acc_vec)=>{
+                    match arg.eval(){
+                        Ok(cross)=>Ok({acc_vec.push(cross);acc_vec}),
+                        Err(e)=>return Err(e)
+                    }
+                }
+                Err(e)=>return Err(e)
+            }
+    });
+    hc
 }

@@ -1,0 +1,8 @@
+class Example name age:
+    name = name
+    #age = age
+
+impl str Example\this:
+    `Example${this.name}, ${this.age}`
+
+log (Example "John" 30)

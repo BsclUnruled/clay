@@ -9,31 +9,44 @@ use super::vm::gc::Mark;
 use super::vm::{self, gc};
 
 pub mod func;
-pub mod list;
+pub mod array;
 pub mod undef;
 pub mod object;
-pub mod int;
-pub mod boolean;
-pub mod float;
 pub mod string;
 
-pub trait Var: Any {
-    fn get(&self, name: &str) -> Cross;
-    fn set(&self, name: &str, value: Cross);
+// pub trait Var: Any {
+//     fn get(&self, name: &str) -> Cross;
+//     fn set(&self, name: &str, value: Cross);
+// }
+
+// pub fn to_cross(value: Box<dyn Var>) -> Cross {
+//     Cross::new(value)
+// }
+
+// impl<T> From<T> for Cross{
+//     fn from(value: T) -> Self {
+//         Cross::new(Box::new(value))
+//     }
+// }
+
+pub trait ToCross{
+    fn to_cross(self) -> Cross;
 }
 
-pub fn to_cross(value: Box<dyn Var>) -> Cross {
-    Cross::new(value)
+impl<T:'static> ToCross for T{
+    fn to_cross(self) -> Cross{
+        Cross::new(Box::new(self))
+    }
 }
 
 pub struct VarBox {
     mark: Cell<Mark>,
     id: usize,
-    value: Box<dyn Var>,
+    value: Box<dyn Any>,
 }
 
 impl VarBox {
-    pub fn new(value: Box<dyn Var>) -> Self {
+    pub fn new(value: Box<dyn Any>) -> Self {
         Self {
             mark: Cell::new(Mark::New),
             id: vm::gc::get_id(),
@@ -44,25 +57,26 @@ impl VarBox {
     pub fn get_id(&self) -> usize {
         self.id
     }
-    pub fn get_super(&self) -> Cross {
-        self.value.get("--super--")
-    }
-    pub fn get_class(&self) -> Cross {
-        self.value.get("--class--")
-    }
+    // pub fn get_super(&self) -> Cross {
+    //     self.value.get("--super--")
+    // }
+    // pub fn get_class(&self) -> Cross {
+    //     self.value.get("--class--")
+    // }
     pub fn get_mark(&self) -> Mark {
         self.mark.get()
     }
     pub fn set_mark(&self, mark: Mark) {
         self.mark.set(mark)
     }
-    pub fn cast<T: Var>(&self) -> Option<&T> {
-        if self.value.type_id() == TypeId::of::<T>() {
-            let ptr: *const dyn Var = self.value.as_ref();
-            Some(unsafe { &*(ptr as *const T) }) //cum rust
-        } else {
-            None
-        }
+    pub fn cast<T:'static>(&self) -> Option<&T> {
+        // if self.value.type_id() == TypeId::of::<T>() {
+        //     let ptr: *const dyn Any = self.value.as_ref();
+        //     Some(unsafe { &*(ptr as *const T) }) //cum rust
+        // } else {
+        //     None
+        // }
+        self.value.downcast_ref::<T>()
     }
 }
 
@@ -73,7 +87,7 @@ impl Drop for VarBox {
 }
 
 impl Deref for VarBox {
-    type Target = dyn Var;
+    type Target = dyn Any;
     fn deref(&self) -> &Self::Target {
         &*self.value
     }
@@ -92,7 +106,7 @@ impl Cross {
         }
     }
 
-    pub fn new(value: Box<dyn Var>) -> Self {
+    pub fn new(value: Box<dyn Any>) -> Self {
         Self {
             weak:gc::push_heap(VarBox::new(value)),
         }

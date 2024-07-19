@@ -1,11 +1,14 @@
-use crate::clay::var::Cross;
-use super::var::{float::*, func::{Args, Func}, int::*, string, to_cross, undef::undef};
+use num::BigInt;
+use signal::Signal;
+use crate::clay::var::ToCross;
+use super::var::{func::Func, string, undef::undef};
 pub mod gc;
 pub mod error;
 pub mod keys;
 pub mod env;
+pub mod signal;
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum Code{
     Sym(String),
     Int(BigInt),
@@ -13,49 +16,36 @@ pub enum Code{
     Str(String),
     Escape(String),
     Template(String),
-    Bracket(Vec<Code>),
-    Block(Vec<Vec<Code>>),
+    Bracket(Box<Code>,Vec<Code>),
+    Block(Vec<Code>),
 }
 
-pub trait Eval{
-    fn eval(&self)->Cross;
-}
-
-impl Eval for Code{
-    fn eval(&self)->Cross{
+impl Code{
+    pub fn eval(&self)->Signal{
         match self{
             Self::Sym(ref s)=>env::find_var(s),
-            Self::Int(ref i)=>to_cross(Box::new(i.clone())),
-            Self::Float(ref f)=>to_cross(Box::new(*f)),
-            Self::Str(ref s)=>to_cross(Box::new(s.to_string())),
-            Self::Escape(ref s)=>to_cross(Box::new(string::escape(s))),
-            Self::Template(ref s)=>to_cross(Box::new(string::template(s))),
+            Self::Int(ref i)=>i.clone().to_cross(),
+            Self::Float(ref f)=>(*f).to_cross(),
+            Self::Str(ref s)=>s.to_owned().to_cross(),
+            Self::Escape(ref s)=>string::escape(s).to_cross(),
+            Self::Template(ref s)=>string::template(s).to_cross(),
             Self::Block(ref b)=>{
-                env::new_scope(||{
-                    let mut result = undef();
+                return env::new_scope(||{
+                    let mut result = undef().into();
                     for expr in b{
                         result = expr.eval();
                     };
                     result
                 })
             },
-            Self::Bracket(ref b)=>b.eval(),
-            _=>panic!("未知Code")
-        }
-    }
-}
-
-impl Eval for Vec<Code>{
-    fn eval(&self)->Cross {
-        let func = match self.first(){
-            Some(ref tbf) => tbf.eval(),
-            None=>return undef()
-        };
-        let args = Args{args:self[1..].to_vec()};
-        let func:&Func = match func.uncross().cast(){
-            Some(f)=>f,
-            None=>return undef()
-        };
-        func.call(args)
+            Self::Bracket(ref b,ref args)=>{
+                let hc = b.eval()?.uncross();
+                let func:&Func = match hc.cast(){
+                    Some(f)=>f,
+                    None=>panic!("不是函数")
+                };
+                func.call(args)?
+            }
+        }.into()
     }
 }

@@ -4,11 +4,13 @@ use std::collections::LinkedList;
 use crate::clay::var::undef::undef;
 use crate::clay::var::Cross;
 
+use super::signal::Signal;
+
 thread_local! {
     static CONTEXT:RefCell<LinkedList<RefCell<HashMap<String,Cross>>>> = RefCell::new(LinkedList::new());
 }
 
-pub fn new_scope(run:impl FnOnce()->Cross)->Cross{
+pub fn new_scope(run:impl FnOnce()->Signal)->Signal{
     CONTEXT.with(|ctx|{
         ctx.borrow_mut()
             .push_back(RefCell::new(HashMap::new()));

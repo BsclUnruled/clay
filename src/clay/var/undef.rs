@@ -1,26 +1,19 @@
-use crate::clay::vm;
-
-use super::Var;
+use super::ToCross;
 
 #[derive(Debug)]
 struct Undef();
 
-impl Var for Undef {
-    fn get(&self, name:&str)->super::Cross {
-        match name {
-            "?"=>undef(),
-            _=>vm::error::throw(&format!("Error:读取undef的属性{}",name))
-        }
-    }
-    fn set(&self, name:&str, _:super::Cross) {
-        vm::error::throw(&format!("Error:尝试设置undef的属性{}",name))
-    }
-}
-
 thread_local! {
-    static UD:super::Cross = super::to_cross(Box::new(Undef()));
+    static UD:super::Cross = Undef().to_cross();
 }
 
 pub fn undef() -> super::Cross {
     UD.with(|ud| ud.clone())
+}
+
+pub fn test() {
+    let ud = undef();
+    let ud2 = ud.uncross();
+    let ud3 = ud2.cast::<Undef>();
+    println!("{:?}", ud3);
 }

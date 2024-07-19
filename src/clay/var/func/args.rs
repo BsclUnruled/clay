@@ -11,6 +11,9 @@ pub struct Args {
 }
 
 impl Args {
+    pub fn new(args: Vec<Code>) -> Self {
+        Self { args }
+    }
     pub fn ctor(_: Args) -> Cross {
         to_cross(Box::new(Self {
             args: vec![],
