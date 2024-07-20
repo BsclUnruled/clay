@@ -6,6 +6,8 @@ use crate::clay::vm::signal::Signal;
 
 pub type Array = RefCell<Vec<Cross>>;
 
+impl ToCross for Array{}
+
 pub fn new()->Array{
     RefCell::new(Vec::<Cross>::new())
 }

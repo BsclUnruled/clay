@@ -2,3 +2,4 @@
 
 pub mod var;
 pub mod vm;
+pub mod parse;

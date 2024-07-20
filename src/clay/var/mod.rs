@@ -1,8 +1,9 @@
-use std::any::{Any, TypeId};
+use std::any::Any;
 use std::cell::Cell;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
+use num::BigInt;
 use undef::undef;
 
 use super::vm::gc::Mark;
@@ -30,14 +31,53 @@ pub mod string;
 // }
 
 pub trait ToCross{
-    fn to_cross(self) -> Cross;
-}
-
-impl<T:'static> ToCross for T{
-    fn to_cross(self) -> Cross{
+    fn to_cross(self:Self) -> Cross where Self:Sized + 'static{
         Cross::new(Box::new(self))
     }
 }
+
+pub struct CrossWrap<T: Any>(T);
+
+impl<T:'static> ToCross for CrossWrap<T> {
+    // fn to_cross(self) -> Cross {
+    //     Cross::new(Box::new(self))
+    // }
+}
+
+impl ToCross for Cross {
+    fn to_cross(self) -> Cross {
+        self
+    }
+}
+
+impl ToCross for Rc<VarBox> {
+    fn to_cross(self) -> Cross {
+        Cross { weak: Rc::downgrade(&self) }
+    }
+}
+
+impl ToCross for Weak<VarBox> {
+    fn to_cross(self) -> Cross {
+        Cross { weak: self }
+    }
+}
+
+impl ToCross for Box<dyn Any> {
+    fn to_cross(self) -> Cross {
+        Cross::new(self)
+    }
+}
+
+impl ToCross for BigInt{}
+impl ToCross for f64{}
+impl ToCross for String{}
+impl ToCross for bool{}
+
+// impl<T:'static> ToCross for T{
+//     fn to_cross(self) -> Cross{
+//         Cross::new(Box::new(self))
+//     }
+// }
 
 pub struct VarBox {
     mark: Cell<Mark>,
@@ -69,7 +109,7 @@ impl VarBox {
     pub fn set_mark(&self, mark: Mark) {
         self.mark.set(mark)
     }
-    pub fn cast<T:'static>(&self) -> Option<&T> {
+    pub fn cast<T:ToCross + 'static>(&self) -> Option<&T> {
         // if self.value.type_id() == TypeId::of::<T>() {
         //     let ptr: *const dyn Any = self.value.as_ref();
         //     Some(unsafe { &*(ptr as *const T) }) //cum rust

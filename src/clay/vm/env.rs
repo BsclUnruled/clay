@@ -6,14 +6,38 @@ use crate::clay::var::Cross;
 
 use super::signal::Signal;
 
+pub trait Context {
+    fn get(&self, name: &str)->Option<Cross>;
+    fn set(&self, name: &str, value: Cross);
+    fn has(&self, name: &str)->bool;
+    fn boxed(self:Self)->Box<dyn Context> where Self:Sized+'static{
+        Box::new(self)
+    }
+}
+
+impl Context for RefCell<HashMap<String, Cross>>{
+    fn get(&self, name: &str)->Option<Cross> {
+        match self.borrow().get(name){
+            Some(var) => Some(var.clone()),
+            None => None
+        }
+    }
+    fn set(&self, name: &str, value: Cross) {
+        self.borrow_mut().insert(name.to_string(), value);
+    }
+    fn has(&self, name: &str)->bool {
+        self.borrow().contains_key(name)
+    }
+}
+
 thread_local! {
-    static CONTEXT:RefCell<LinkedList<RefCell<HashMap<String,Cross>>>> = RefCell::new(LinkedList::new());
+    static CONTEXT:RefCell<LinkedList<Box<dyn Context>>> = RefCell::new(LinkedList::new());
 }
 
 pub fn new_scope(run:impl FnOnce()->Signal)->Signal{
     CONTEXT.with(|ctx|{
         ctx.borrow_mut()
-            .push_back(RefCell::new(HashMap::new()));
+            .push_back(Box::new(RefCell::new(HashMap::new())));
     });
     let result = run();
     CONTEXT.with(|ctx|{
@@ -27,7 +51,7 @@ pub fn find_var(name: &str)->Cross{
         let c = ctx.borrow_mut().pop_back();
         let result = match c{
             Some(scope) => {
-                let result = match scope.borrow_mut().get(name){
+                let result = match scope.get(name){
                     Some(var) => var.clone(),
                     None => find_var(name)
                 };
@@ -45,8 +69,7 @@ pub fn def_var(name: &str, value: Cross){
         ctx.borrow()
            .back()
            .expect("Error(def_var):没有作用域了")
-           .borrow_mut()
-           .insert(name.to_string(), value);
+           .set(name, value);
     });
 }
 
@@ -55,8 +78,8 @@ pub fn set_var(name: &str, value: Cross){
         let c = ctx.borrow_mut().pop_back();
         match c{
             Some(scope) => {
-                if scope.borrow().contains_key(name){
-                    scope.borrow_mut().insert(name.to_string(), value);
+                if scope.has(name){
+                    scope.set(name, value);
                 }else{
                     set_var(name, value);
                 };

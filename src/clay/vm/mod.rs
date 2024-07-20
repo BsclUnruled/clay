@@ -1,7 +1,7 @@
 use num::BigInt;
-use signal::Signal;
+use signal::{Abort, Signal};
 use crate::clay::var::ToCross;
-use super::var::{func::Func, string, undef::undef};
+use super::var::{func::Func, string, undef::undef, Cross};
 pub mod gc;
 pub mod error;
 pub mod keys;
@@ -16,8 +16,11 @@ pub enum Code{
     Str(String),
     Escape(String),
     Template(String),
-    Bracket(Box<Code>,Vec<Code>),
+    Bracket(Vec<Code>),
     Block(Vec<Code>),
+    Option(String),
+    //Lambda(Vec<String>,Box<Code>),
+    The(Cross)
 }
 
 impl Code{
@@ -38,14 +41,29 @@ impl Code{
                     result
                 })
             },
-            Self::Bracket(ref b,ref args)=>{
-                let hc = b.eval()?.uncross();
+            Self::Bracket(ref args)=>{
+                let hc = match args.get(0){
+                    Some(fun)=>fun,
+                    None=>return Err(
+                        Abort::Throw(
+                            undef()
+                        )
+                    )
+                }.eval()?.uncross();
                 let func:&Func = match hc.cast(){
                     Some(f)=>f,
                     None=>panic!("不是函数")
                 };
-                func.call(args)?
-            }
+                func.call(&args[1..])?
+            },
+            Self::Option(_)=>{
+                return Err(
+                    Abort::Throw(
+                        undef()
+                    )
+                )
+            },
+            Self::The(ref c)=>c.clone(),
         }.into()
     }
 }

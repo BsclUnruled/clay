@@ -17,34 +17,36 @@ pub type Args<'l> = &'l [Code];
 pub type Function = 
     &'static dyn Fn(Args)->Signal;
 
-thread_local! {
-    static CTOR:Cross = Func::Native(&func_ctor).to_cross();
-}
-
-pub fn new_ctor(func:Function)->Cross{
-    Func::Native(func).to_cross()
-}
-
-// pub fn from_lambda(lam:&impl Fn(Args)->Cross)->Cross{
-//     Func::Native(Box::leak(
-//         Box::new(lam)
-//     )).to_cross()
+// thread_local! {
+//     static CTOR:Cross = Func::Native(&func_ctor).to_cross();
 // }
 
+// pub fn new_ctor(func:Function)->Cross{
+//     Func::Native(func).to_cross()
+// }
 
-fn func_ctor(_:Args)->Signal{
-    Script::new(vec![],None,vec![])
-        .to_cross()
-        .into()
-}
+// // pub fn from_lambda(lam:&impl Fn(Args)->Cross)->Cross{
+// //     Func::Native(Box::leak(
+// //         Box::new(lam)
+// //     )).to_cross()
+// // }
 
-pub fn ctor()->Cross{
-    CTOR.with(|ctor| ctor.clone())
-}
+
+// pub fn ctor()->Cross{
+//     CTOR.with(|ctor| ctor.clone())
+// }
 
 pub enum Func{
     Native(Function),
     Script(Script),
+}
+
+impl ToCross for Func{
+    fn to_cross(self)->Cross{
+        Cross::new(
+            Box::new(self)
+        )
+    }
 }
 
 impl Func{

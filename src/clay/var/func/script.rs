@@ -15,7 +15,13 @@ impl Script{
             for index in 0..(
                 if self.args_name.len() > args.len(){args.len()}else{self.args_name.len()}
             ){
-                env::def_var(&self.args_name[index],args[index].eval()?)
+                env::def_var( match &self.args_name.get(index){
+                    Some(name)=>name,
+                    None=>return Err(Abort::Throw(undef()))
+                },match args.get(index){
+                    Some(arg)=>arg,
+                    None=>return Err(Abort::Throw(undef()))
+                }.eval()?)
             }
             match &self.rest{
                 Some(name)=>{
@@ -38,6 +44,7 @@ impl Script{
             result
         })
     }
+
     pub fn new(args_name:Vec<String>, rest:Option<String>, code:Vec<Code>)->Self{
         Self{
             args_name,

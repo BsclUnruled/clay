@@ -11,11 +11,19 @@ pub struct Object {
     this:RefCell<HashMap<String,Cross>>
 }
 
+impl ToCross for Object {
+    fn to_cross(self) -> Cross {
+        Cross::new(
+            Box::new(self)
+        )
+    }
+}
+
 impl Object {
     pub fn new() -> Self {
         let mut core = HashMap::new();
 
-        core.insert(keys::CLASS.to_string(),ctor());
+        //core.insert(keys::CLASS.to_string(),ctor());
         core.insert(keys::SUPER.to_string(),undef());
 
         Object{
@@ -27,10 +35,10 @@ impl Object {
     }
 }
 
-thread_local! {
-    static CTOR:Cross = super::func::new_ctor(&Object::ctor);
-}
+// thread_local! {
+//     static CTOR:Cross = super::func::new_ctor(&Object::ctor);
+// }
 
-pub fn ctor() -> Cross {
-    CTOR.with(|c| c.clone())
-}
+// pub fn ctor() -> Cross {
+//     CTOR.with(|c| c.clone())
+// }
