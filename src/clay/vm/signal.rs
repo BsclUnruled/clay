@@ -11,4 +11,6 @@ pub type Signal = Result<Cross,Abort>;
 pub enum Abort {
     Throw(Cross),
     Break(Cross),
+    ThrowError(Box<dyn std::error::Error>),
+    ThrowString(String),
 }

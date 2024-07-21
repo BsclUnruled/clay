@@ -39,6 +39,8 @@ pub type Function =
 pub enum Func{
     Native(Function),
     Script(Script),
+    // Functor
+    // Coroutine
 }
 
 impl ToCross for Func{

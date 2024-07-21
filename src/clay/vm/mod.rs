@@ -1,4 +1,4 @@
-use num::BigInt;
+use num_bigint::BigInt;
 use signal::{Abort, Signal};
 use crate::clay::var::ToCross;
 use super::var::{func::Func, string, undef::undef, Cross};
@@ -18,7 +18,7 @@ pub enum Code{
     Template(String),
     Bracket(Vec<Code>),
     Block(Vec<Code>),
-    Option(String),
+    //Option(String),
     //Lambda(Vec<String>,Box<Code>),
     The(Cross)
 }
@@ -55,13 +55,6 @@ impl Code{
                     None=>panic!("不是函数")
                 };
                 func.call(&args[1..])?
-            },
-            Self::Option(_)=>{
-                return Err(
-                    Abort::Throw(
-                        undef()
-                    )
-                )
             },
             Self::The(ref c)=>c.clone(),
         }.into()

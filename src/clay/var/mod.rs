@@ -3,7 +3,7 @@ use std::cell::Cell;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
-use num::BigInt;
+use num_bigint::BigInt;
 use undef::undef;
 
 use super::vm::gc::Mark;
@@ -70,6 +70,11 @@ impl ToCross for Box<dyn Any> {
 
 impl ToCross for BigInt{}
 impl ToCross for f64{}
+impl ToCross for &f64{
+    fn to_cross(self) -> Cross{
+        Cross::new(Box::new(*self))
+    }
+}
 impl ToCross for String{}
 impl ToCross for bool{}
 

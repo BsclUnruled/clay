@@ -21,7 +21,8 @@ impl Script{
                 },match args.get(index){
                     Some(arg)=>arg,
                     None=>return Err(Abort::Throw(undef()))
-                }.eval()?)
+                }.eval()?)?;
+                ()
             }
             match &self.rest{
                 Some(name)=>{
@@ -33,7 +34,7 @@ impl Script{
                                 build(&args[self.args_name.len()..])?
                             ).to_cross()
                         }
-                    });
+                    })?;
                 },
                 None=>()
             }

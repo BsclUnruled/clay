@@ -1,8 +1,25 @@
-class Example name age:
-    name = name
-    #age = age
+pipe{   #这，就是clay
+    count 0 114
+    collect it Array
+    
+    map it \x{
+        if(== (% x 3) 0){
+            + x (randint 1 4)
+        }else{
+            x
+        }
+    }
 
-impl str Example\this:
-    `Example${this.name}, ${this.age}`
+    for it log
+}
 
-log (Example "John" 30)
+try{
+    throw "error"
+}catch(err){
+    case TypeError{
+        log (str err)
+    }
+    case _{
+        log "unknown error"
+    }
+}
