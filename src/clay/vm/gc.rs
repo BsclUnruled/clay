@@ -21,31 +21,31 @@ thread_local! {
 
 pub fn marker(var:&Cross){}
 
-#[coroutine]
-fn sweeper(){
-    let mut count = 0;
-    loop{
-        let mut new = LinkedList::new();
-        for var in HEAP.with(|heap|{heap.borrow().into_iter()}){
-            match var.get_mark(){
-                Mark::New|Mark::Marked=>{
-                    var.set_mark(Mark::Unmarked);
-                    new.push_back(Rc::clone(&var));
-                },
-                Mark::Unmarked=>(),
-            }
-            count += 1;
-            if count >= STEP{
-                count = 0;
-                yield;
-            }
-        }
+// #[coroutine]
+// fn sweeper(){
+//     let mut count = 0;
+//     loop{
+//         let mut new = LinkedList::new();
+//         for var in HEAP.with(|heap|{heap.borrow().into_iter()}){
+//             match var.get_mark(){
+//                 Mark::New|Mark::Marked=>{
+//                     var.set_mark(Mark::Unmarked);
+//                     new.push_back(Rc::clone(&var));
+//                 },
+//                 Mark::Unmarked=>(),
+//             }
+//             count += 1;
+//             if count >= STEP{
+//                 count = 0;
+//                 yield;
+//             }
+//         }
 
-        HEAP.with(|heap|{
-            *heap.borrow_mut() = new;
-        })
-    }
-}
+//         HEAP.with(|heap|{
+//             *heap.borrow_mut() = new;
+//         })
+//     }
+// }
 
 // pub fn sweeper0(){
 //     for index in unsafe{HEAP_INDEX}..(STEP + unsafe {HEAP_INDEX}){

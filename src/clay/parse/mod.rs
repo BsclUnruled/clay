@@ -1,5 +1,6 @@
-use super::vm::Code;
+use super::{var::object::Object, vm::Code};
 use std::cell::Cell;
+use crate::clay::var::lambda::lambda;
 
 pub struct CodeIter<'a> {
     code: &'a str,
@@ -13,114 +14,228 @@ impl<'a> CodeIter<'a> {
         Self { code, index: 0.into() }
     }
 
-    pub fn parse(&self) -> Return{
+    fn parse_until(&self,end:Option<char>) -> Return{
         let mut token = Vec::<char>::new();
-        let mut line = Vec::<Code>::new();
         let mut result:Vec<Code> = vec![];
         loop{
-            match self.next() {
-                Some(c) => match c {
-                    '{'=>line.push(self.parse_block()?),
-                    '('=>line.push(self.parse_bracket()?),
-                    '"'=>line.push(self.parse_escape()?),
-                    '\''=>line.push(self.parse_str()?),
-                    '`'=>line.push(self.parse_template()?),
-                    ' '|'\t'|'\r'=>{
-                        if token.len() > 0{
-                            line.push(
-                                Code::Sym(token.iter().collect::<String>())
-                            );
-                            token = vec![];
-                        }
+            let next = self.next();
+            if end == next{
+                if token.len() > 0{
+                    result.push(Code::Sym(token.iter().collect::<String>()));
+                }
+                if result.len() > 0{
+                    return Ok(Code::Bracket(result));
+                }else{
+                    return Ok(Code::Bracket(vec![Code::Sym("".to_owned())]));
+                }
+            }else{
+                match next{
+                    Some(c) => match c {
+                        '('=>{
+                            if token.len() > 0{
+                                result.push(Code::Sym(token.iter().collect::<String>()));
+                                token = vec![];
+                            }
+                            result.push(self.parse_until(Some(')'))?)
+                        },
+                        '"'=>{
+                            if token.len() > 0{
+                                result.push(Code::Sym(token.iter().collect::<String>()));
+                                token = vec![];
+                            }
+                            result.push(self.parse_escape()?)
+                        },
+                        '\''=>{
+                            if token.len() > 0{
+                                result.push(Code::Sym(token.iter().collect::<String>()));
+                                token = vec![];
+                            }
+                            result.push(self.parse_str()?)
+                        },
+                        '`'=>{
+                            if token.len() > 0{
+                                result.push(Code::Sym(token.iter().collect::<String>()));
+                                token = vec![];
+                            }
+                            result.push(self.parse_template()?)
+                        },
+                        '\t'|'\r'|' '|'\n' => {
+                            if token.len() > 0{
+                                result.push(Code::Sym(token.iter().collect::<String>()));
+                                token = vec![];
+                            }
+                        },
+                        '\\'=>{
+                            if token.len() > 0{
+                                result.push(Code::Sym(token.iter().collect::<String>()));
+                                token = vec![];
+                            }
+                            result.push(self.parse_lambda()?)
+                        },
+                        '['=>{
+                            if token.len() > 0{
+                                result.push(Code::Sym(token.iter().collect::<String>()));
+                                token = vec![];
+                            }
+                            result.push(self.parse_until(Some(']'))?)
+                        },
+                        '{'=>{
+                            if token.len() > 0{
+                                result.push(Code::Sym(token.iter().collect::<String>()));
+                                token = vec![];
+                            }
+                            result.push(self.parse_block()?)
+                        },
+                        '#'=>{
+                            if token.len() > 0{
+                                result.push(Code::Sym(token.iter().collect::<String>()));
+                                token = vec![]; 
+                            }
+                            match self.ignore(){
+                                Ok(_) => {},
+                                Err(e) => return Err(e),
+                            }
+                        },
+                        '}'|')'|']'=>{
+                            return Err("Unexpected closing bracket".to_owned());
+                        },
+                        _=>token.push(c),
                     },
-                    '\n'=>{
-                        if line.len() > 0{
-                            result.push(Code::Bracket(line));
-                            line = vec![];
-                        }
-                    },
-                    '#'=>loop{
-                        match self.next(){
-                            Some('\n')=> break,
-                            Some(_) => continue,
-                            None => return Err("Unexpected end of code".to_owned()),
-                        }
-                    },
-                    ']'|')'|'}'=>return Err("Unexpected closing bracket".to_owned()),
-                    _=>token.push(c),
-                },
-                None => return Ok({
-                    if token.len() > 0{
-                        line.push(Code::Sym(token.iter().collect::<String>()))
-                    }
-                    if line.len() > 0{
-                        result.push(Code::Bracket(line));
-                    }
-                    Code::Bracket(result)
-                }),
+                    None => return Err("Unexpected end of code".to_owned()),
+                }
             }
         }
     }
 
-    fn parse_block(&self) -> Return{
-        let mut token = Vec::<char>::new();
-        let mut line = Vec::<Code>::new();
-        let mut result:Vec<Code> = vec![];
+    fn ignore(&self)->Result<(),String>{
+        let result = vec![Code::The(lambda())];
+        loop{
+            match self.next(){
+                Some(c)=>match c{
+                    //todo
+                }
+                None => return Err("Unexpected end of code".to_owned()),
+            }
+        }
+        Ok(())
+    }
+
+    fn parse_lambda(&self) -> Return{
         loop{
             match self.next(){
                 Some(c) => match c {
-                    '{'=>line.push(self.parse_block()?),
-                    '('=>line.push(self.parse_bracket()?),
-                    '"'=>line.push(self.parse_escape()?),
-                    '\''=>line.push(self.parse_str()?),
-                    '`'=>line.push(self.parse_template()?),
-                    ' '|'\t'|'\r'=>{
-                        if token.len() > 0{
-                            line.push(
-                                Code::Sym(token.iter().collect::<String>())
-                            );
-                            token = vec![];
-                        }
-                    },
-                    '\n'=>{
-                        if line.len() > 0{
-                            result.push(Code::Bracket(line));
-                            line = vec![];
-                        }
-                    },
-                    '#'=>loop{
-                        match self.next(){
-                            Some('\n')=> break,
-                            Some(_) => continue,
-                            None => return Err("Unexpected end of code".to_owned()),
-                        }
-                    },
-                    '}'=>return Ok({
-                        if token.len() > 0{
-                            line.push(Code::Sym(token.iter().collect::<String>()))
-                        }
-                        if line.len() > 0{
-                            result.push(Code::Bracket(line));
-                        }
-                        Code::Bracket(result)
-                    }),
-                    ')'|']'=>return Err("Unexpected closing bracket".to_owned()),
-                    _=>token.push(c),
+                    _ => todo!(),
                 },
                 None => return Err("Unexpected end of code".to_owned()),
             }
         }
+    }
+
+    // pub fn parse(&self) -> Return{
+    //     let mut token = Vec::<char>::new();
+    //     let mut line = Vec::<Code>::new();
+    //     let mut result:Vec<Code> = vec![];
+    //     loop{
+    //         match self.next() {
+    //             Some(c) => match c {
+    //                 '{'=>line.push(self.parse_block()?),
+    //                 '('=>line.push(self.parse_bracket()?),
+    //                 '"'=>line.push(self.parse_escape()?),
+    //                 '\''=>line.push(self.parse_str()?),
+    //                 '`'=>line.push(self.parse_template()?),
+    //                 ' '|'\t'|'\r'=>{
+    //                     if token.len() > 0{
+    //                         line.push(
+    //                             Code::Sym(token.iter().collect::<String>())
+    //                         );
+    //                         token = vec![];
+    //                     }
+    //                 },
+    //                 '\n'=>{
+    //                     if line.len() > 0{
+    //                         result.push(Code::Bracket(line));
+    //                         line = vec![];
+    //                     }
+    //                 },
+    //                 '#'=>loop{
+    //                     match self.next(){
+    //                         Some('\n')=> break,
+    //                         Some(_) => continue,
+    //                         None => return Err("Unexpected end of code".to_owned()),
+    //                     }
+    //                 },
+    //                 ']'|')'|'}'=>return Err("Unexpected closing bracket".to_owned()),
+    //                 _=>token.push(c),
+    //             },
+    //             None => return Ok({
+    //                 if token.len() > 0{
+    //                     line.push(Code::Sym(token.iter().collect::<String>()))
+    //                 }
+    //                 if line.len() > 0{
+    //                     result.push(Code::Bracket(line));
+    //                 }
+    //                 Code::Bracket(result)
+    //             }),
+    //         }
+    //     }
+    // }
+
+    // fn parse_block(&self) -> Return{
+    //     let mut token = Vec::<char>::new();
+    //     let mut line = Vec::<Code>::new();
+    //     let mut result:Vec<Code> = vec![];
+    //     loop{
+    //         match self.next(){
+    //             Some(c) => match c {
+    //                 '{'=>line.push(self.parse_block()?),
+    //                 '('=>line.push(self.parse_bracket()?),
+    //                 '"'=>line.push(self.parse_escape()?),
+    //                 '\''=>line.push(self.parse_str()?),
+    //                 '`'=>line.push(self.parse_template()?),
+    //                 ' '|'\t'|'\r'=>{
+    //                     if token.len() > 0{
+    //                         line.push(
+    //                             Code::Sym(token.iter().collect::<String>())
+    //                         );
+    //                         token = vec![];
+    //                     }
+    //                 },
+    //                 '\n'=>{
+    //                     if line.len() > 0{
+    //                         result.push(Code::Bracket(line));
+    //                         line = vec![];
+    //                     }
+    //                 },
+    //                 '#'=>loop{
+    //                     match self.next(){
+    //                         Some('\n')=> break,
+    //                         Some(_) => continue,
+    //                         None => return Err("Unexpected end of code".to_owned()),
+    //                     }
+    //                 },
+    //                 '}'=>return Ok({
+    //                     if token.len() > 0{
+    //                         line.push(Code::Sym(token.iter().collect::<String>()))
+    //                     }
+    //                     if line.len() > 0{
+    //                         result.push(Code::Bracket(line));
+    //                     }
+    //                     Code::Bracket(result)
+    //                 }),
+    //                 ')'|']'=>return Err("Unexpected closing bracket".to_owned()),
+    //                 _=>token.push(c),
+    //             },
+    //             None => return Err("Unexpected end of code".to_owned()),
+    //         }
+    //     }
+    // }
+
+    fn parse_block(&self) -> Return{
+        todo!()
     }
 
     fn parse_bracket(&self) -> Return{
-        loop{
-            match self.next(){
-                Some(c) => match c {
-                    _=>todo!(),
-                },
-                None => return Err("Unexpected end of code".to_owned()),
-            }
-        }
+        self.parse_until(Some(')'))
     }
 
     fn parse_escape(&self) -> Return{
@@ -157,9 +272,9 @@ impl<'a> CodeIter<'a> {
     }
 
 
-    // fn done(&self) -> bool {
-    //     self.index.get() >= self.code.len()
-    // }
+    fn done(&self) -> bool {
+        self.index.get() >= self.code.len()
+    }
 
     fn next(&self) -> Option<char> {
         match self.code.chars().nth(self.index.get()) {

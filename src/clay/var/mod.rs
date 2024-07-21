@@ -14,6 +14,7 @@ pub mod array;
 pub mod undef;
 pub mod object;
 pub mod string;
+pub mod lambda;
 
 // pub trait Var: Any {
 //     fn get(&self, name: &str) -> Cross;
