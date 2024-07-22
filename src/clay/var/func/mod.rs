@@ -1,3 +1,5 @@
+use crate::clay::vm::Runtime;
+use crate::clay::vm::env::Context;
 use crate::clay::vm::{signal::Signal, Code};
 
 use super::{Cross, ToCross};
@@ -12,7 +14,7 @@ pub mod script;
 pub use script::Script;
 //pub use native::Native;
 
-pub type Args<'l> = &'l [Code];
+pub type Args<'l> = (&'l mut Runtime,&'l [Code],&'l dyn Context);
 
 pub type Function = 
     &'static dyn Fn(Args)->Signal;
@@ -40,7 +42,6 @@ pub enum Func{
     Native(Function),
     Script(Script),
     // Functor
-    // Coroutine
 }
 
 impl ToCross for Func{
