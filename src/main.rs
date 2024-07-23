@@ -1,9 +1,7 @@
 //#![feature(coroutines, coroutine_trait, stmt_expr_attributes)]
 
-use clay::{
-    parse,
-    var::{undef, Cross},
-};
+use clay::parse;
+use corosensei::{Coroutine, CoroutineResult};
 
 pub mod clay;
 
@@ -16,9 +14,8 @@ fn main()->Result<(),()>{
     // vm.async_runtime().block_on(water());
 
     let code = r#"
-{
-    a b(cd 21)
-    \(x){cd g}    
+map arr \(x){
+    eq x 1
 }    
 "#;
 

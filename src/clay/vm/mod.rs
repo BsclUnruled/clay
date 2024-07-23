@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use env::Context;
 use num_bigint::BigInt;
 use signal::{Abort, Signal};
@@ -54,11 +56,11 @@ impl ToString for Code{
 }
 
 pub trait Eval {
-    fn eval(&self,vm:&mut Runtime,ctx:&dyn Context)->Signal;
+    fn eval(&self,vm:&'static RefCell<Runtime>,ctx:Rc<dyn Context>)->Signal;
 }
 
 impl Eval for String{
-    fn eval(&self,vm:&mut Runtime,ctx:&dyn Context)->Signal{
+    fn eval(&self,vm:&'static RefCell<Runtime>,ctx:Rc<dyn Context>)->Signal{
         use crate::clay::parse::Parser;
         let parser = Parser::new(self);
         match parser.parse(){
@@ -71,14 +73,14 @@ impl Eval for String{
 }
 
 impl Eval for [Code]{
-    fn eval(&self,vm:&mut Runtime,ctx:&dyn Context)->Signal{
+    fn eval(&self,vm:&'static RefCell<Runtime>,ctx:Rc<dyn Context>)->Signal{
         match self.get(0){
             None=>undef().into(),
             Some(func_sym)=>{
-                match func_sym.eval(vm,ctx){
+                match func_sym.eval(vm,Rc::clone(&ctx)){
                     Ok(func)=>{
                         match func.uncross().cast::<Func>(){
-                            Some(f)=>f.call((vm,&self[1..],ctx)),
+                            Some(f)=>f.call((vm,&self[1..],Rc::clone(&ctx))),
                             None=>Err(
                                 Abort::ThrowString(
                                     "不是函数(from Eval for [Code])".to_owned()
@@ -94,7 +96,7 @@ impl Eval for [Code]{
 }
 
 impl Eval for Code{
-    fn eval(&self,vm:&mut Runtime,ctx:&dyn Context)->Signal{
+    fn eval(&self,vm:&'static RefCell<Runtime>,ctx:Rc<dyn Context>)->Signal{
         match self{
             Self::Sym(ref s)=>env::find_var(s),
             Self::Int(ref i)=>i.clone().to_cross(),
@@ -105,7 +107,7 @@ impl Eval for Code{
                 return env::new_scope(||{
                     let mut result = undef().into();
                     for expr in b{
-                        result = expr.eval(vm,ctx);
+                        result = expr.eval(vm,Rc::clone(&ctx));
                     };
                     result
                 })
@@ -118,7 +120,7 @@ impl Eval for Code{
                             undef()
                         )
                     )
-                }.eval(vm,ctx)?.uncross();
+                }.eval(vm,Rc::clone(&ctx))?.uncross();
                 let func:&Func = match hc.cast(){
                     Some(f)=>f,
                     None=>return Err(
@@ -127,7 +129,7 @@ impl Eval for Code{
                         )
                     )
                 };
-                func.call((vm,&args[1..],ctx))?
+                func.call((vm,&args[1..],Rc::clone(&ctx)))?
             },
             Self::Middle(ref args)=>{
                 let hc = match args.get(0){
@@ -137,7 +139,7 @@ impl Eval for Code{
                             undef()
                         )
                     )
-                }.eval(vm,ctx)?.uncross();
+                }.eval(vm,Rc::clone(&ctx))?.uncross();
                 let func:&Func = match hc.cast(){
                     Some(f)=>f,
                     None=>return Err(
@@ -146,7 +148,7 @@ impl Eval for Code{
                         )
                     )
                 };
-                func.call((vm,&args[1..],ctx))?
+                func.call((vm,&args[1..],Rc::clone(&ctx)))?
             }
             Self::The(ref c)=>c.clone(),
         }.into()

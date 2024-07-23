@@ -8,3 +8,4 @@ num-bigint = "0.4"
 num-traits = "0.2"
 
 #coroutine = "0.8"
+corosensei = "0.1.4"

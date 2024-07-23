@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::clay::{var::{array::{self, Array},undef::undef, Cross}, vm::{env, signal::{Abort, Signal}, Code}};
 use super::Args;
 use crate::clay::var::ToCross;
@@ -23,7 +25,7 @@ impl Script{
                 },match args.get(index){
                     Some(arg)=>arg,
                     None=>return Err(Abort::Throw(undef()))
-                }.eval(vm,ctx)?)?;
+                }.eval(vm,Rc::clone(&ctx))?)?;
                 ()
             }
             match &self.rest{
@@ -33,7 +35,23 @@ impl Script{
                             Array::new(vec![]).to_cross()
                         }else{
                             array::Array::new(
-                                build((vm,&args[self.args_name.len()..],ctx))?
+                                // build((vm,&args[self.args_name.len()..],Rc::clone(&ctx)))?
+                                {
+                                    let args = &args[self.args_name.len()..];
+                                    let hc = args.into_iter()
+                                        .fold(Ok(Vec::with_capacity(args.len())),|acc,arg|{
+                                            match acc{
+                                                Ok(mut acc_vec)=>{
+                                                    match arg.eval(vm,Rc::clone(&ctx)){
+                                                        Ok(cross)=>Ok({acc_vec.push(cross);acc_vec}),
+                                                        Err(e)=>return Err(e)
+                                                    }
+                                                }
+                                                Err(e)=>return Err(e)
+                                            }
+                                    });
+                                    hc
+                                }?
                             ).to_cross()
                         }
                     })?;
@@ -42,7 +60,7 @@ impl Script{
             }
             let mut result = undef().into();
             for code in &self.code{
-                result = code.eval(vm,ctx);
+                result = code.eval(vm,Rc::clone(&ctx));
             }
             result
         })
@@ -63,7 +81,7 @@ fn build(args:Args)->Result<Vec<Cross>,Abort>{
         .fold(Ok(Vec::with_capacity(args.len())),|acc,arg|{
             match acc{
                 Ok(mut acc_vec)=>{
-                    match arg.eval(vm,ctx){
+                    match arg.eval(vm,Rc::clone(&ctx)){
                         Ok(cross)=>Ok({acc_vec.push(cross);acc_vec}),
                         Err(e)=>return Err(e)
                     }

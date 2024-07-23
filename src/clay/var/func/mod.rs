@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use crate::clay::vm::Runtime;
 use crate::clay::vm::env::Context;
 use crate::clay::vm::{signal::Signal, Code};
@@ -8,13 +11,12 @@ use super::{Cross, ToCross};
 //pub mod coro;
 //pub mod native;
 pub mod script;
-
-//pub use args::Args;
-//use coro::CodeRunner;
+pub mod coro;
+use coro::Coro;
 pub use script::Script;
-//pub use native::Native;
 
-pub type Args<'l> = (&'l mut Runtime,&'l [Code],&'l dyn Context);
+
+pub type Args<'l> = (&'static RefCell<Runtime>,&'l [Code],Rc<dyn Context>);
 
 pub type Function = 
     &'static dyn Fn(Args)->Signal;
@@ -41,6 +43,7 @@ pub type Function =
 pub enum Func{
     Native(Function),
     Script(Script),
+    Coro(Coro)
     // Functor
 }
 
@@ -57,6 +60,7 @@ impl Func{
         match self {
             Func::Native(n) => n(args),
             Func::Script(s) => s.call(args),
+            Func::Coro(f)=> f.resume(args)
         }
     }
 }
