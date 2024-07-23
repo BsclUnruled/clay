@@ -15,14 +15,12 @@ fn main()->Result<(),()>{
     // let vm = clay::vm::Runtime::new();
     // vm.async_runtime().block_on(water());
 
-    let code = 
-r#"map it \(x){
-    if {
-        + x (randint 1 4)
-    }else{
-        x
-    }
-}"#;
+    let code = r#"
+{
+    a b(cd 21)
+    \(x){cd g}    
+}    
+"#;
 
     let hc = match parse::Parser::new(code).parse(){
         Ok(hc) => hc,
@@ -35,8 +33,4 @@ r#"map it \(x){
     println!("{}",hc.to_string());
     println!("{:?}",hc);
     Ok(())
-}
-
-async fn water() {
-    println!("water");
 }

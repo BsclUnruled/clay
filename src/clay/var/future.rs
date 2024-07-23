@@ -6,13 +6,15 @@ use crate::clay::vm::{
 };
 use std::mem;
 use std::future::Future;
+use std::pin::Pin;
+use std::process::Output;
 
-pub struct FutureWrapper<T: Future<Output = Cross> + Send + 'static>(T);
+pub struct FutureWrapper(Pin<Box<dyn Future<Output = Cross>>>);
 
-impl<T: Future<Output = Cross> + Send + 'static> ToCross for FutureWrapper<T> {}
+impl ToCross for FutureWrapper {}
 
-impl<T: Future<Output = Cross> + Send + 'static> FutureWrapper<T> {
-    pub fn new(future: T) -> Self {
+impl FutureWrapper {
+    pub fn new(future:Pin<Box<dyn Future<Output = Cross>>>) -> Self {
         FutureWrapper(future)
     }
 
@@ -23,10 +25,8 @@ impl<T: Future<Output = Cross> + Send + 'static> FutureWrapper<T> {
     //         Some(future_code) => match future_code.eval(vm, ctx) {
     //             Ok(future_cross) => {
     //                 let hc = future_cross.uncross();
-    //                 match hc.cast::<FutureWrapper<T>>() {
-    //                     Some(future) => Ok(vm.async_runtime().block_on(async{
-    //                         mem::replace(&mut future.0,async{undef()}).await
-    //                     })),
+    //                 match hc.cast::<FutureWrapper>() {
+    //                     Some(future) => Ok(vm.async_runtime().block_on(future.0)),
     //                     None => {
     //                         return Err(Abort::ThrowString(
     //                             "希望是一个Future对象(from Future.resolve)".to_owned(),
@@ -41,3 +41,9 @@ impl<T: Future<Output = Cross> + Send + 'static> FutureWrapper<T> {
     // }
 
 }
+
+// struct Fw<T: Future<Output = ()>>(T);
+
+// const AF:
+
+// async fn async_fn() -> () {}
