@@ -1,7 +1,6 @@
 //#![feature(coroutines, coroutine_trait, stmt_expr_attributes)]
 
 use clay::parse;
-use corosensei::{Coroutine, CoroutineResult};
 
 pub mod clay;
 
@@ -15,9 +14,20 @@ fn main()->Result<(),()>{
 
     let code = r#"
 map arr \(x){
-    eq x 1
+    log 'rty'
+
+    if(eq x 1){
+        0.9
+    }else{
+        -114
+        -19.7
+    }
+
+
 }    
 "#;
+
+    println!("{}",code);
 
     let hc = match parse::Parser::new(code).parse(){
         Ok(hc) => hc,
@@ -27,7 +37,7 @@ map arr \(x){
         }
     };
 
-    println!("{}",hc.to_string());
-    println!("{:?}",hc);
+    //println!("\n{}",hc.to_string());
+    println!("\n{:?}",hc);
     Ok(())
 }

@@ -1,6 +1,6 @@
 pub fn escape(s: &str) -> String{
-    todo!()
+    todo!("Error:escape尚未完成")
 }
 pub fn template(s: &str) -> String{
-    todo!()
+    todo!("Error:template尚未完成")
 }

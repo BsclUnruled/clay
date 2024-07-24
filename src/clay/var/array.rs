@@ -12,18 +12,19 @@ pub fn new()->Array{
     RefCell::new(Vec::<Cross>::new())
 }
 
-fn array_ctor(_:Args)->Signal{
-    let hc = RefCell::new(Vec::<Cross>::new());
-    hc.to_cross().into()
-}
+// fn array_ctor(_:Args)->Signal{
+//     let () = args;
+//     let hc = RefCell::new(Vec::<Cross>::new());
+//     hc.to_cross().into()
+// }
 
-thread_local!{
-    static CTOR:Cross = {
-        let hc:Func = Func::Native(&array_ctor);
-        hc.to_cross()
-    }
-}
+// thread_local!{
+//     static CTOR:Cross = {
+//         let hc:Func = Func::Native(&array_ctor);
+//         hc.to_cross()
+//     }
+// }
 
-pub fn ctor()->Cross{
-    CTOR.with(|f| f.clone())
-}
+// pub fn ctor()->Cross{
+//     CTOR.with(|f| f.clone())
+// }

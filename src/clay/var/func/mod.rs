@@ -11,12 +11,18 @@ use super::{Cross, ToCross};
 //pub mod coro;
 //pub mod native;
 pub mod script;
-pub mod coro;
-use coro::Coro;
+// pub mod coro;
+// use coro::Coro;
+use corosensei::Yielder;
 pub use script::Script;
 
 
-pub type Args<'l> = (&'static RefCell<Runtime>,&'l [Code],Rc<dyn Context>);
+pub type Args<'l> = (
+    &'static RefCell<Runtime>,
+    &'l [Code],
+    Rc<dyn Context>,
+    &'l Yielder<Cross, Signal>,
+);
 
 pub type Function = 
     &'static dyn Fn(Args)->Signal;
@@ -43,24 +49,18 @@ pub type Function =
 pub enum Func{
     Native(Function),
     Script(Script),
-    Coro(Coro)
+    //Coro(Coro)
     // Functor
 }
 
-impl ToCross for Func{
-    fn to_cross(self)->Cross{
-        Cross::new(
-            Box::new(self)
-        )
-    }
-}
+impl ToCross for Func{}
 
 impl Func{
     pub fn call(&self, args: Args) -> Signal{
         match self {
             Func::Native(n) => n(args),
             Func::Script(s) => s.call(args),
-            Func::Coro(f)=> f.resume(args)
+            //Func::Coro(f)=> f.resume(args)
         }
     }
 }

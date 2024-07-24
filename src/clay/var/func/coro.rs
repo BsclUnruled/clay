@@ -19,6 +19,7 @@ impl Coro {
         vm:&'static RefCell<Runtime>,
         func:&Script,
         context:Rc<dyn Context>,)->Self{
+            
         let cont1xt = Rc::clone(&context);//给结构体
         let cont2xt = Rc::clone(&cont1xt);//给协程
 

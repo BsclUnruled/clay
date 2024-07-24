@@ -1,8 +1,7 @@
 use std::rc::Rc;
 
-use crate::clay::{var::{array::{self, Array},undef::undef, Cross}, vm::{env, signal::{Abort, Signal}, Code}};
+use crate::clay::{var::{array::Array, ToCross}, vm::{env, signal::{Abort, Signal}, Code}};
 use super::Args;
-use crate::clay::var::ToCross;
 use crate::clay::vm::Eval;
 
 #[derive(Debug)]
@@ -14,27 +13,34 @@ pub struct Script{
 
 impl Script{
     pub fn call(&self,arga4:Args)->Signal{
-        let (vm,args,ctx) = arga4;
-        env::new_scope(||{
+        let (vm,args,ctx,ctrl) = arga4;
+        // env::new_scope(||
+        // })
+
+        let ctx = env::default(
+            Some(Rc::clone(&ctx))
+        );
+
+        {
             for index in 0..(
                 if self.args_name.len() > args.len(){args.len()}else{self.args_name.len()}
             ){
-                env::def_var( match &self.args_name.get(index){
+                ctx.def( match &self.args_name.get(index){
                     Some(name)=>name,
-                    None=>return Err(Abort::Throw(undef()))
-                },match args.get(index){
+                    None=>return Err(Abort::Throw(vm.borrow().undef()))
+                },&match args.get(index){
                     Some(arg)=>arg,
-                    None=>return Err(Abort::Throw(undef()))
-                }.eval(vm,Rc::clone(&ctx))?)?;
+                    None=>return Err(Abort::Throw(vm.borrow().undef()))
+                }.eval(vm,Rc::clone(&ctx),ctrl)?);
                 ()
             }
             match &self.rest{
                 Some(name)=>{
-                    env::def_var(name,{
-                        if args.len()<self.args_name.len(){
-                            Array::new(vec![]).to_cross()
+                    ctx.def(name,{
+                        &(if args.len()<self.args_name.len(){
+                            Array::new(vec![]).to_cross(vm)
                         }else{
-                            array::Array::new(
+                            Array::new(
                                 // build((vm,&args[self.args_name.len()..],Rc::clone(&ctx)))?
                                 {
                                     let args = &args[self.args_name.len()..];
@@ -42,7 +48,7 @@ impl Script{
                                         .fold(Ok(Vec::with_capacity(args.len())),|acc,arg|{
                                             match acc{
                                                 Ok(mut acc_vec)=>{
-                                                    match arg.eval(vm,Rc::clone(&ctx)){
+                                                    match arg.eval(vm,Rc::clone(&ctx),ctrl){
                                                         Ok(cross)=>Ok({acc_vec.push(cross);acc_vec}),
                                                         Err(e)=>return Err(e)
                                                     }
@@ -52,18 +58,18 @@ impl Script{
                                     });
                                     hc
                                 }?
-                            ).to_cross()
-                        }
-                    })?;
+                            ).to_cross(vm)
+                        })
+                    });
                 },
                 None=>()
             }
-            let mut result = undef().into();
+            let mut result = vm.borrow().undef().into();
             for code in &self.code{
-                result = code.eval(vm,Rc::clone(&ctx));
+                result = code.eval(vm,Rc::clone(&ctx),ctrl);
             }
             result
-        })
+        }
     }
 
     pub fn new(args_name:Vec<String>, rest:Option<String>, code:Vec<Code>)->Self{
@@ -75,19 +81,19 @@ impl Script{
     }
 }
 
-fn build(args:Args)->Result<Vec<Cross>,Abort>{
-    let (vm,args,ctx) = args;
-    let hc = args.into_iter()
-        .fold(Ok(Vec::with_capacity(args.len())),|acc,arg|{
-            match acc{
-                Ok(mut acc_vec)=>{
-                    match arg.eval(vm,Rc::clone(&ctx)){
-                        Ok(cross)=>Ok({acc_vec.push(cross);acc_vec}),
-                        Err(e)=>return Err(e)
-                    }
-                }
-                Err(e)=>return Err(e)
-            }
-    });
-    hc
-}
+// fn build(args:Args)->Result<Vec<Cross>,Abort>{
+//     let (vm,args,ctx,_) = args;
+//     let hc = args.into_iter()
+//         .fold(Ok(Vec::with_capacity(args.len())),|acc,arg|{
+//             match acc{
+//                 Ok(mut acc_vec)=>{
+//                     match arg.eval(vm,Rc::clone(&ctx)){
+//                         Ok(cross)=>Ok({acc_vec.push(cross);acc_vec}),
+//                         Err(e)=>return Err(e)
+//                     }
+//                 }
+//                 Err(e)=>return Err(e)
+//             }
+//     });
+//     hc
+// }

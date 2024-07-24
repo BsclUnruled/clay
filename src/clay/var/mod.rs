@@ -4,10 +4,9 @@ use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
 use num_bigint::BigInt;
-use undef::undef;
 
 use super::vm::gc::Mark;
-use super::vm::{self, gc};
+use super::vm::runtime::Vm;
 
 pub mod func;
 pub mod array;
@@ -33,8 +32,8 @@ pub mod lambda;
 // }
 
 pub trait ToCross{
-    fn to_cross(self:Self) -> Cross where Self:Sized + 'static{
-        Cross::new(Box::new(self))
+    fn to_cross(self:Self,vm:Vm) -> Cross where Self:Sized + 'static{
+        Cross::new(Box::new(self),vm)
     }
 }
 
@@ -47,36 +46,31 @@ impl<T:'static> ToCross for CrossWrap<T> {
 }
 
 impl ToCross for Cross {
-    fn to_cross(self) -> Cross {
+    fn to_cross(self,_:Vm) -> Cross {
         self
     }
 }
 
 impl ToCross for Rc<VarBox> {
-    fn to_cross(self) -> Cross {
+    fn to_cross(self,_:Vm) -> Cross {
         Cross { weak: Rc::downgrade(&self) }
     }
 }
 
 impl ToCross for Weak<VarBox> {
-    fn to_cross(self) -> Cross {
+    fn to_cross(self,_:Vm) -> Cross {
         Cross { weak: self }
     }
 }
 
 impl ToCross for Box<dyn Any> {
-    fn to_cross(self) -> Cross {
-        Cross::new(self)
+    fn to_cross(self,vm:Vm) -> Cross {
+        Cross::new(self,vm)
     }
 }
 
 impl ToCross for BigInt{}
 impl ToCross for f64{}
-impl ToCross for &f64{
-    fn to_cross(self) -> Cross{
-        Cross::new(Box::new(*self))
-    }
-}
 impl ToCross for String{}
 impl ToCross for bool{}
 
@@ -93,10 +87,10 @@ pub struct VarBox {
 }
 
 impl VarBox {
-    pub fn new(value: Box<dyn Any>) -> Self {
+    pub fn new(value: Box<dyn Any>,vm:Vm) -> Self {
         Self {
             mark: Cell::new(Mark::New),
-            id: vm::gc::get_id(),
+            id: vm.borrow_mut().get_id(),
             value,
         }
     }
@@ -127,11 +121,11 @@ impl VarBox {
     }
 }
 
-impl Drop for VarBox {
-    fn drop(&mut self) {
-        gc::back_id(self.id)
-    }
-}
+// impl Drop for VarBox {
+//     fn drop(&mut self) {
+//         gc::back_id(self.id)
+//     }
+// }
 
 impl Deref for VarBox {
     type Target = dyn Any;
@@ -146,16 +140,16 @@ pub struct Cross {
 }
 
 impl Cross {
-    pub fn uncross(&self) -> Rc<VarBox> {
+    pub fn uncross(&self,vm:Vm) -> Rc<VarBox> {
         match self.weak.upgrade() {
             Some(var) => var,
-            None=>undef().uncross()
+            None=>vm.borrow().undef().uncross(vm)
         }
     }
 
-    pub fn new(value: Box<dyn Any>) -> Self {
+    pub fn new(value: Box<dyn Any>,vm:Vm) -> Self {
         Self {
-            weak:gc::push_heap(VarBox::new(value)),
+            weak:vm.borrow_mut().push_heap(VarBox::new(value,vm)),
         }
     }
 }
