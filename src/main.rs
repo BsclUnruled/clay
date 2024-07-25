@@ -6,6 +6,7 @@ use clay::{
 };
 use corosensei::Coroutine;
 use corosensei::Yielder;
+use num_bigint::BigInt;
 
 pub mod clay;
 
@@ -26,11 +27,8 @@ puts '' #试试注释
 {
     puts (input '输入名字 ' )
     puts ''
-
+    345
 }
-
-puts '程序结束'
-
 "#;
 
     println!("{}", code);
@@ -64,7 +62,12 @@ puts '程序结束'
 
         match coro.resume(undef.clone()) {
             corosensei::CoroutineResult::Yield(val) => println!("\nyield: {:?}", val),
-            corosensei::CoroutineResult::Return(val) => println!("\nreturn: {:?}", val),
+            corosensei::CoroutineResult::Return(val) => println!(
+                "\nreturn: {:?} @{:?} {:?}",
+                val,
+                val.as_ref().unwrap().uncross().unwrap().ptr(),
+                val.as_ref().unwrap().uncross().unwrap().cast::<BigInt>()
+            ),
         };
     };
 

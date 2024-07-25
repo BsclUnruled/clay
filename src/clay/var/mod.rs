@@ -120,6 +120,10 @@ impl VarBox {
         // }
         self.value.downcast_ref::<T>()
     }
+
+    pub fn ptr(&self)->*const Self{
+        &*self as *const Self
+    }
 }
 
 // impl Drop for VarBox {
