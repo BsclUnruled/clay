@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use crate::clay::Cell;
 use std::collections::HashMap;
 
 use crate::clay::var::Cross;
@@ -16,7 +16,7 @@ pub trait Context {
     fn def(&self, name: &str, value:&Cross);
 }
 
-impl Context for (RefCell<HashMap<String, Cross>>,Option<Rc<dyn Context>>){
+impl Context for (Cell<HashMap<String, Cross>>,Option<Rc<dyn Context>>){
     fn get(&self, name: &str)->Signal {
         match self.0.borrow().get(name){
             Some(var) => Ok(var.clone()),
@@ -24,7 +24,7 @@ impl Context for (RefCell<HashMap<String, Cross>>,Option<Rc<dyn Context>>){
                 Some(parent) => parent.get(name),
                 None => Err(
                     Abort::ThrowString(
-                        format!("Error(get):未能找到变量 {}",name)
+                        format!("Error(get):未能找到变量 {:?}",name)
                     )
                 )
             }
@@ -37,7 +37,7 @@ impl Context for (RefCell<HashMap<String, Cross>>,Option<Rc<dyn Context>>){
         }else{
             match &self.1{
                 Some(parent) => parent.set(name, value),
-                None => panic!("Error(set):未能找到变量 {}",name)
+                None => panic!("Error(set):未能找到变量 {:?}",name)
             }
         }
     }
@@ -50,14 +50,37 @@ impl Context for (RefCell<HashMap<String, Cross>>,Option<Rc<dyn Context>>){
 }
 
 pub fn default(upper:Option<Rc<dyn Context>>)->Rc<dyn Context>{
-    Rc::new((RefCell::new(HashMap::new()),upper))
+    Rc::new((Cell::new(HashMap::new()),upper))
+}
+
+impl Context for (){
+    fn def(&self, name: &str, _:&Cross) {
+        panic!("Error(def {:?} to undef_ctx):没有作用域了 (from undef_ctx)",name)
+    }
+    fn get(&self, name: &str)->Signal {
+        Err(
+            Abort::ThrowString(
+                format!("Error(get {:?} from undef_ctx):没有作用域了",name)
+            )
+        )
+    }
+    fn has(&self, _: &str)->bool {
+        false
+    }
+    fn set(&self, name: &str, _:&Cross) {
+        panic!("Error(set {:?} to undef_ctx):没有作用域了 (from undef_ctx)",name)
+    }
+}
+
+pub fn undef_ctx() -> Rc<dyn Context>{
+    Rc::new(())
 }
 
 // //自动创建并回收作用域
 // pub fn new_scope(run:impl FnOnce()->Signal)->Signal{
 //     CONTEXT.with(|ctx|{
 //         ctx.borrow_mut()
-//             .push_back(RefCell::new(HashMap::new()).boxed().into());
+//             .push_back(Cell::new(HashMap::new()).boxed().into());
 //     });
 //     let result = run();
 //     CONTEXT.with(|ctx|{

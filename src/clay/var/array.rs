@@ -1,8 +1,6 @@
 use std::cell::RefCell;
-use super::{func::Args,Cross};
+use super::Cross;
 use crate::clay::var::ToCross;
-use crate::clay::var::func::*;
-use crate::clay::vm::signal::Signal;
 
 pub type Array = RefCell<Vec<Cross>>;
 

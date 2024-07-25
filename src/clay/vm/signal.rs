@@ -8,6 +8,7 @@ impl From<Cross> for Signal {
 
 pub type Signal = Result<Cross,Abort>;
 
+#[derive(Debug)]
 pub enum Abort {
     Throw(Cross),
     Break(Cross),

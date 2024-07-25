@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::clay::{var::{array::Array, ToCross}, vm::{env, signal::{Abort, Signal}, Code}};
+use crate::clay::{var::{array::Array, ToCross}, vm::{env, signal::{Abort, Signal}, Token}};
 use super::Args;
 use crate::clay::vm::Eval;
 
@@ -8,7 +8,7 @@ use crate::clay::vm::Eval;
 pub struct Script{
     args_name:Vec<String>,
     rest:Option<String>,
-    pub(super) code:Vec<Code>,
+    pub(super) code:Vec<Token>,
 }
 
 impl Script{
@@ -27,10 +27,10 @@ impl Script{
             ){
                 ctx.def( match &self.args_name.get(index){
                     Some(name)=>name,
-                    None=>return Err(Abort::Throw(vm.borrow().undef()))
+                    None=>return Err(Abort::Throw(vm.borrow().undef()?))
                 },&match args.get(index){
                     Some(arg)=>arg,
-                    None=>return Err(Abort::Throw(vm.borrow().undef()))
+                    None=>return Err(Abort::Throw(vm.borrow().undef()?))
                 }.eval(vm,Rc::clone(&ctx),ctrl)?);
                 ()
             }
@@ -72,7 +72,7 @@ impl Script{
         }
     }
 
-    pub fn new(args_name:Vec<String>, rest:Option<String>, code:Vec<Code>)->Self{
+    pub fn new(args_name:Vec<String>, rest:Option<String>, code:Vec<Token>)->Self{
         Self{
             args_name,
             rest,

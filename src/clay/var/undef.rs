@@ -1,37 +1,13 @@
-use std::{cell::Cell, collections::LinkedList, rc::Rc};
-
-use super::{ToCross, VarBox};
-use crate::clay::{var::Cross, vm::{self, runtime::Vm}};
+use super::ToCross;
+use crate::clay::{var::Cross, vm::runtime::Vm};
 
 #[derive(Debug)]
 struct Undef();
 
-impl ToCross for Undef {
-    fn to_cross(self,_:Vm) -> super::Cross {
-        // Cross::new(
-        //     Box::new(self),vm
-        // )
+impl ToCross for Undef {}
 
-        panic!("Error: 使用ToCross创建undef")
-    }
-}
-
-pub fn init(
-    heap:&mut LinkedList<Rc<VarBox>>//vm的heap,先行交给undef::init来初始化undef
-    ) -> super::Cross {
-    let undef = Rc::new(VarBox{
-        mark:Cell::new(vm::gc::Mark::New),
-        id:0usize,
-        value: Box::new(Undef()),
-    });
-
-    let result = Cross { 
-        weak: Rc::downgrade(&undef)
-    };
-    
-    heap.push_back(undef);
-
-    result
+pub fn new(vm:Vm)->Cross{
+    Undef().to_cross(vm)
 }
 
 // pub fn test() {

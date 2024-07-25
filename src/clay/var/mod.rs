@@ -7,6 +7,7 @@ use num_bigint::BigInt;
 
 use super::vm::gc::Mark;
 use super::vm::runtime::Vm;
+use super::vm::signal::Abort;
 
 pub mod func;
 pub mod array;
@@ -140,10 +141,15 @@ pub struct Cross {
 }
 
 impl Cross {
-    pub fn uncross(&self,vm:Vm) -> Rc<VarBox> {
+    pub fn uncross(&self) -> Result<Rc<VarBox>,Abort> {
         match self.weak.upgrade() {
-            Some(var) => var,
-            None=>vm.borrow().undef().uncross(vm)
+            Some(var) => Ok(var),
+            None=>//vm.borrow().undef().uncross(vm)
+                Err(
+                    Abort::ThrowString(
+                        format!("Error:变量已被回收({:?})",self as *const Cross as *const ())
+                    )
+                )
         }
     }
 

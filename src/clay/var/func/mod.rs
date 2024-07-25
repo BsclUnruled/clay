@@ -1,9 +1,7 @@
-use std::cell::RefCell;
 use std::rc::Rc;
-
-use crate::clay::vm::Runtime;
+use crate::clay::vm::runtime::Vm;
 use crate::clay::vm::env::Context;
-use crate::clay::vm::{signal::Signal, Code};
+use crate::clay::vm::{signal::Signal, Token};
 
 use super::{Cross, ToCross};
 
@@ -11,15 +9,14 @@ use super::{Cross, ToCross};
 //pub mod coro;
 //pub mod native;
 pub mod script;
-// pub mod coro;
-// use coro::Coro;
+
 use corosensei::Yielder;
 pub use script::Script;
 
 
 pub type Args<'l> = (
-    &'static RefCell<Runtime>,
-    &'l [Code],
+    Vm,
+    &'l [Token],
     Rc<dyn Context>,
     &'l Yielder<Cross, Signal>,
 );

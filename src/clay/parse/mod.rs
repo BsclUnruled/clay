@@ -1,9 +1,8 @@
 use num_bigint::BigInt;
 
-use super::{
-    var::string,
-    vm::Code,
-};
+use crate::clay::vm::signal::Abort;
+
+use super::{var::string, vm::Token};
 use std::{cell::Cell, collections::LinkedList, str::FromStr};
 
 pub struct Parser<'a> {
@@ -11,13 +10,13 @@ pub struct Parser<'a> {
     index: Cell<usize>,
 }
 
-type Return = Result<Code, String>;
+type Return = Result<Token, String>;
 
-fn closure(result: &mut Vec<Code>, token:&mut Vec<char>) -> Result<(), String> {
+fn closure(result: &mut Vec<Token>, token: &mut Vec<char>) -> Result<(), String> {
     if token.len() > 0 {
         let t = token.iter().collect::<String>();
         *token = vec![];
-        
+
         let yes = {
             //获取str第一个字符
             let hc = t.chars().next().unwrap();
@@ -28,19 +27,19 @@ fn closure(result: &mut Vec<Code>, token:&mut Vec<char>) -> Result<(), String> {
         if yes {
             return match BigInt::from_str(&t) {
                 Ok(n) => {
-                    result.push(Code::Int(n));
+                    result.push(Token::Int(n));
                     Ok(())
                 }
                 Err(_) => match f64::from_str(&t) {
                     Ok(n) => {
-                        result.push(Code::Float(n));
+                        result.push(Token::Float(n));
                         Ok(())
                     }
                     Err(_) => Err(format!("Invalid number: {}", t)),
                 },
             };
         } else {
-            result.push(Code::Token(t));
+            result.push(Token::Ident(t));
             Ok(())
         }
     } else {
@@ -60,7 +59,7 @@ impl<'a> Parser<'a> {
         #[cfg(debug_assertions)]
         println!("start parse");
 
-        let mut result: Vec<Code> = vec![];
+        let mut result: Vec<Token> = vec![];
 
         while !self.done() {
             let (code, end) = self.parse_line_unless(None)?;
@@ -72,16 +71,39 @@ impl<'a> Parser<'a> {
                 #[cfg(debug_assertions)]
                 println!("finish parse");
 
-                return Ok(Code::Block(result));
+                return Ok(Token::Block(result));
             } else {
                 continue;
             }
         }
-        return Ok(Code::Block(result));
+        return Ok(Token::Block(result));
+    }
+
+    fn peek(&self)->Option<char>{
+        match self.code.chars().nth(self.index.get()) {
+            Some(c) => {
+                Some(c)
+            }
+            None => None,
+        }
+    }
+
+    // + - * / % ^ ! & | < > = % ~ 
+    // ++ -- ** // += -= *= /= %= ^= &= |= <<= >>= ==!= <= >= && ||
+    // ? :
+    fn parse_symbol(&self,sym:char)->Return{
+        todo!("parse_symbol");
+        
+        #[cfg(debug_assertions)]
+        println!("parse_symbol");
+
+        let mut token = vec![sym];
+
+        Ok(Token::Ident(token.iter().collect()))
     }
 
     //                                                      结果，是否以end结尾
-    fn parse_line_unless(&self, end: Option<char>) -> Result<(Option<Code>, bool), String> {
+    fn parse_line_unless(&self, end: Option<char>) -> Result<(Option<Token>, bool), String> {
         #[cfg(debug_assertions)]
         println!(
             "parse_line_unless_{:?}",
@@ -92,7 +114,7 @@ impl<'a> Parser<'a> {
         );
 
         let mut token = Vec::<char>::new();
-        let mut result: Vec<Code> = vec![];
+        let mut result: Vec<Token> = vec![];
         loop {
             let next = self.next();
             if next == end {
@@ -101,9 +123,9 @@ impl<'a> Parser<'a> {
 
                 return Ok((
                     {
-                        closure(&mut result,&mut token)?;
+                        closure(&mut result, &mut token)?;
                         if result.len() > 0 {
-                            Some(Code::Bracket(result))
+                            Some(Token::Bracket(result))
                         } else {
                             None
                         }
@@ -114,15 +136,25 @@ impl<'a> Parser<'a> {
                 match next {
                     Some(c) => match c {
                         '(' => {
-                            closure(&mut result,&mut token)?;
+                            closure(&mut result, &mut token)?;
 
                             #[cfg(debug_assertions)]
                             println!("use parse_bracket({:?}): ", c);
 
                             result.push(self.parse_bracket(')')?)
                         }
+                        ',' => {
+                            closure(&mut result, &mut token)?;
+
+                            #[cfg(debug_assertions)]
+                            println!("收集逗号");
+
+                            token.push(',');
+
+                            closure(&mut result, &mut token)?;
+                        }
                         '"' => {
-                            closure(&mut result,&mut token)?;
+                            closure(&mut result, &mut token)?;
 
                             #[cfg(debug_assertions)]
                             println!("use parse_escape: ");
@@ -156,7 +188,7 @@ impl<'a> Parser<'a> {
 
                             return Ok((
                                 if result.len() > 0 {
-                                    Some(Code::Bracket(result))
+                                    Some(Token::Bracket(result))
                                 } else {
                                     None
                                 },
@@ -185,7 +217,7 @@ impl<'a> Parser<'a> {
                             #[cfg(debug_assertions)]
                             println!("use parse_block:");
 
-                            result.push(self.parse_block()?)
+                            result.push(self.parse_block()?);
                         }
                         '#' => {
                             closure(&mut result, &mut token)?;
@@ -241,8 +273,8 @@ impl<'a> Parser<'a> {
         #[cfg(debug_assertions)]
         println!("parse_lambda");
 
-        Ok(Code::Bracket(vec![
-            Code::Token("\\".to_owned()),
+        Ok(Token::Bracket(vec![
+            Token::Ident("\\".to_owned()),
             {
                 loop {
                     match self.next() {
@@ -289,110 +321,11 @@ impl<'a> Parser<'a> {
         ]))
     }
 
-    // pub fn parse(&self) -> Return{
-    //     let mut token = Vec::<char>::new();
-    //     let mut line = Vec::<Code>::new();
-    //     let mut result:Vec<Code> = vec![];
-    //     loop{
-    //         match self.next() {
-    //             Some(c) => match c {
-    //                 '{'=>line.push(self.parse_block()?),
-    //                 '('=>line.push(self.parse_bracket()?),
-    //                 '"'=>line.push(self.parse_escape()?),
-    //                 '\''=>line.push(self.parse_str()?),
-    //                 '`'=>line.push(self.parse_template()?),
-    //                 ' '|'\t'|'\r'=>{
-    //                     if token.len() > 0{
-    //                         line.push(
-    //                             Code::Sym(token.iter().collect::<String>())
-    //                         );
-    //                         token = vec![];
-    //                     }
-    //                 },
-    //                 '\n'=>{
-    //                     if line.len() > 0{
-    //                         result.push(Code::Bracket(line));
-    //                         line = vec![];
-    //                     }
-    //                 },
-    //                 '#'=>loop{
-    //                     match self.next(){
-    //                         Some('\n')=> break,
-    //                         Some(_) => continue,
-    //                         None => return Err("Unexpected end of code".to_owned()),
-    //                     }
-    //                 },
-    //                 ']'|')'|'}'=>return Err("Unexpected closing bracket".to_owned()),
-    //                 _=>token.push(c),
-    //             },
-    //             None => return Ok({
-    //                 if token.len() > 0{
-    //                     line.push(Code::Sym(token.iter().collect::<String>()))
-    //                 }
-    //                 if line.len() > 0{
-    //                     result.push(Code::Bracket(line));
-    //                 }
-    //                 Code::Bracket(result)
-    //             }),
-    //         }
-    //     }
-    // }
-
-    // fn parse_block(&self) -> Return{
-    //     let mut token = Vec::<char>::new();
-    //     let mut line = Vec::<Code>::new();
-    //     let mut result:Vec<Code> = vec![];
-    //     loop{
-    //         match self.next(){
-    //             Some(c) => match c {
-    //                 '{'=>line.push(self.parse_block()?),
-    //                 '('=>line.push(self.parse_bracket()?),
-    //                 '"'=>line.push(self.parse_escape()?),
-    //                 '\''=>line.push(self.parse_str()?),
-    //                 '`'=>line.push(self.parse_template()?),
-    //                 ' '|'\t'|'\r'=>{
-    //                     if token.len() > 0{
-    //                         line.push(
-    //                             Code::Sym(token.iter().collect::<String>())
-    //                         );
-    //                         token = vec![];
-    //                     }
-    //                 },
-    //                 '\n'=>{
-    //                     if line.len() > 0{
-    //                         result.push(Code::Bracket(line));
-    //                         line = vec![];
-    //                     }
-    //                 },
-    //                 '#'=>loop{
-    //                     match self.next(){
-    //                         Some('\n')=> break,
-    //                         Some(_) => continue,
-    //                         None => return Err("Unexpected end of code".to_owned()),
-    //                     }
-    //                 },
-    //                 '}'=>return Ok({
-    //                     if token.len() > 0{
-    //                         line.push(Code::Sym(token.iter().collect::<String>()))
-    //                     }
-    //                     if line.len() > 0{
-    //                         result.push(Code::Bracket(line));
-    //                     }
-    //                     Code::Bracket(result)
-    //                 }),
-    //                 ')'|']'=>return Err("Unexpected closing bracket".to_owned()),
-    //                 _=>token.push(c),
-    //             },
-    //             None => return Err("Unexpected end of code".to_owned()),
-    //         }
-    //     }
-    // }
-
     fn parse_block(&self) -> Return {
         #[cfg(debug_assertions)]
         println!("parse_block");
 
-        let mut result: Vec<Code> = vec![];
+        let mut result: Vec<Token> = vec![];
 
         while !self.done() {
             let (code, end) = self.parse_line_unless(Some('}'))?;
@@ -404,7 +337,7 @@ impl<'a> Parser<'a> {
                 #[cfg(debug_assertions)]
                 println!("finish parse_block");
 
-                return Ok(Code::Block(result));
+                return Ok(Token::Block(result));
             } else {
                 continue;
             }
@@ -421,7 +354,7 @@ impl<'a> Parser<'a> {
         }
 
         let mut token = Vec::<char>::new();
-        let mut result: Vec<Code> = vec![];
+        let mut result: Vec<Token> = vec![];
         loop {
             let next = self.next();
             match next {
@@ -429,12 +362,12 @@ impl<'a> Parser<'a> {
                     #[cfg(debug_assertions)]
                     println!("finish parse_bracket(until {:?})", end);
                     if end == ')' {
-                        return Ok(Code::Bracket({
+                        return Ok(Token::Bracket({
                             closure(&mut result, &mut token)?;
                             result
                         }));
                     } else if c == ']' {
-                        return Ok(Code::Middle({
+                        return Ok(Token::Middle({
                             closure(&mut result, &mut token)?;
                             result
                         }));
@@ -448,6 +381,16 @@ impl<'a> Parser<'a> {
                         println!("use parse_bracket({:?}): ", c);
 
                         result.push(self.parse_bracket(')')?)
+                    }
+                    ',' => {
+                        closure(&mut result, &mut token)?;
+
+                        #[cfg(debug_assertions)]
+                        println!("收集逗号");
+
+                        token.push(',');
+
+                        closure(&mut result, &mut token)?;
                     }
                     '"' => {
                         closure(&mut result, &mut token)?;
@@ -541,6 +484,7 @@ impl<'a> Parser<'a> {
                     '\\' => {
                         if !escape {
                             escape = true;
+                            string.push_back('\\');
                         } else {
                             string.push_back('\\'); //还原原str中的\\
                             string.push_back('\\');
@@ -558,12 +502,15 @@ impl<'a> Parser<'a> {
                             escape = false;
                         }
                     }
-                    _ => string.push_back(c),
+                    _ => {
+                        string.push_back(c);
+                        escape = false;
+                    }
                 },
                 None => return Err("Unexpected end of code(from parse_escape)".to_owned()),
             }
         };
-        Ok(Code::Str(string::escape(&result)))
+        Ok(Token::Str(string::escape(&result)))
     }
 
     fn parse_str(&self) -> Return {
@@ -577,7 +524,7 @@ impl<'a> Parser<'a> {
                     #[cfg(debug_assertions)]
                     println!("finish");
 
-                    return Ok(Code::Str(string.iter().collect::<String>()));
+                    return Ok(Token::Str(string.iter().collect::<String>()));
                 }
                 Some(c) => string.push_back(c),
                 None => return Err("Unexpected end of code(from parse_str)".to_owned()),
@@ -597,6 +544,7 @@ impl<'a> Parser<'a> {
                     '\\' => {
                         if !escape {
                             escape = true;
+                            string.push_back('\\');
                         } else {
                             string.push_back('\\'); //还原原str中的\\
                             string.push_back('\\');
@@ -609,16 +557,19 @@ impl<'a> Parser<'a> {
                             println!("finish");
                             break string.iter().collect::<String>();
                         } else {
-                            string.push_back('"');
+                            string.push_back('`');
                             escape = false;
                         }
                     }
-                    _ => string.push_back(c),
+                    _ => {
+                        string.push_back(c);
+                        escape = false;
+                    }
                 },
                 None => return Err("Unexpected end of code(from parse_template)".to_owned()),
             }
         };
-        Ok(Code::Template(result))
+        Ok(Token::Template(result))
     }
 
     fn done(&self) -> bool {
@@ -635,39 +586,3 @@ impl<'a> Parser<'a> {
         }
     }
 }
-
-// impl CodeIter{
-//     pub fn next(self)->Option<char>{}
-// }
-
-// pub fn parse_top(text: &str)->Result<Code, ParseError>{
-//     let iter = CodeIter{code:text, index:0};
-
-//     let mut codes = Vec::<char>::new();
-//     for c in iter{
-
-//     };
-//     Ok(Code::The(undef()))
-// }
-
-// pub fn parse_block<T>
-//     (text:&T)
-//     -> Result<Code, ParseError>
-//     where T:Iterator<Item=char>{
-//     let iter = text.peekable();
-//     let mut hc = vec![];
-//     let mut sym_part = vec![];
-//     for c in iter{
-//         match c{
-//             '}'=>return Ok(Code::Block(hc)),
-//             '('=>match parse_bracket(text){
-//                 Ok(code)=>{
-//                     hc.push(code);
-//                 },
-//                 Err(e)=>return Err(e)
-//             },
-//             _=>sym_part.push(c)
-//         }
-//     }
-//     Ok(Code::The(undef()))
-// }panic
