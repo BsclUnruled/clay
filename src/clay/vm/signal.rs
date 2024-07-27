@@ -16,6 +16,11 @@ pub enum Abort {
     Break(Var),
     ThrowError(Box<dyn std::error::Error>),
     ThrowString(String),
+    Exit,
+
+    Return(Var),
+    Continue,
+    End(Var)
 }
 
 impl Abort{

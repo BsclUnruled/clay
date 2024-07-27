@@ -2,6 +2,6 @@ use crate::clay::{var::func::Args, vm::signal::Signal};
 
 pub fn debug(all:Args)->Signal{
     let (vm, _,_) = all;
-    print!("debug");
+    println!("debug");
     vm.borrow().undef()
 }

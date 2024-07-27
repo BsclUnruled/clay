@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display, ops::Add, sync::mpsc::RecvError};
+use std::{error::Error, fmt::Display, ops::Add};
 
 use super::Abort;
 
@@ -85,4 +85,8 @@ pub fn async_scheduler_error()->Abort{
             None,
         ))
     )
+}
+
+pub fn not_a_func()->Abort{
+    throw(&format!("not a function\n\t\t不是函数"))
 }

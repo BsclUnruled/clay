@@ -2,14 +2,28 @@ use crate::clay::vm::signal::Signal;
 
 use crate::clay::vm::{error, runtime::Vm};
 
-use super::ToVar;
+use super::func::Args;
+use super::Virtual;
+use std::fmt::Display;
 pub use std::future::Future as StdFuture;
 
-pub struct Future{
-    //chan:Arc<tokio::sync::oneshot::Receiver<Signal>>
+#[derive(Debug)]
+pub struct Future{}
+
+impl Display for Future{
+    fn fmt(&self,f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f,"Future@{:p}",self)
+    }
 }
 
-impl ToVar for Future{}
+impl Virtual for Future{
+    fn as_func(&self,_:Args)->Signal
+    where Self:Sized + 'static{
+        Err(
+            error::not_a_func()
+        )
+    }
+}
 
 impl Future{
     pub fn new(task:impl StdFuture<Output=Signal> + Send +'static,vm:Vm) -> Self{

@@ -1,11 +1,19 @@
-use std::{
-    collections::{HashMap, LinkedList}, ops::Deref, rc::{Rc, Weak}
+use crate::clay::{
+    self,
+    var::{func, future::StdFuture, undef, ToVar, Var, VarBox},
+    Cell,
 };
-use tokio::sync::mpsc::{Receiver, Sender, channel};
-use crate::clay::{Cell,self, var::{future::StdFuture,func, undef, Var, ToVar, VarBox}};
+use std::{
+    collections::{HashMap, LinkedList},
+    ops::Deref,
+    rc::{Rc, Weak},
+};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use super::{
-    env::{self, Context}, signal::{Abort, ErrSignal, Signal}
+    env::{self, Context},
+    error::VmError,
+    signal::{Abort, ErrSignal, Signal},
 };
 
 pub struct Runtime {
@@ -17,10 +25,10 @@ pub struct Runtime {
 
     //undef:Cross,
     //lambda:Cross,
-    async_runtime:tokio::runtime::Runtime,
+    async_runtime: tokio::runtime::Runtime,
 
-    scheduler:Sender<()>,
-    handle:Receiver<()>,
+    scheduler: Sender<()>,
+    handle: Receiver<()>,
 
     global_context: Rc<dyn Context>,
 }
@@ -29,7 +37,7 @@ unsafe impl Send for Runtime {}
 unsafe impl Sync for Runtime {}
 
 impl Runtime {
-    pub fn get_context(&self)->Rc<dyn Context> {
+    pub fn get_context(&self) -> Rc<dyn Context> {
         Rc::clone(&self.global_context)
     }
     pub fn get_id(&mut self) -> usize {
@@ -43,7 +51,7 @@ impl Runtime {
         }
     }
 
-    pub fn async_runtime(&self)->&tokio::runtime::Runtime {
+    pub fn async_runtime(&self) -> &tokio::runtime::Runtime {
         &self.async_runtime
     }
 
@@ -62,7 +70,7 @@ impl Runtime {
         self.global_context.get("undef")
     }
 
-    pub fn new() -> ErrSignal<Vm>{
+    pub fn new() -> ErrSignal<Vm> {
         let global = HashMap::new();
 
         let global_context = Rc::new((Cell::new(global), Some(env::undef_ctx())));
@@ -75,7 +83,7 @@ impl Runtime {
 
             heap: LinkedList::new(),
 
-            async_runtime:match tokio::runtime::Runtime::new(){
+            async_runtime: match tokio::runtime::Runtime::new() {
                 Ok(rt) => rt,
                 Err(e) => return Err(Abort::ThrowError(Box::new(e))),
             },
@@ -90,41 +98,52 @@ impl Runtime {
         Ok(Self::init(hc))
     }
 
-    fn init(vm:Vm)->Vm {
-        vm.borrow().def("undef",&undef::new(vm));
+    fn init(vm: Vm) -> Vm {
+        vm.borrow().def("undef", &undef::new(vm));
 
         {
-            vm.borrow()
-                .def(
-                    "puts",
-                    &func::Func::Native(
-                        &clay::prelude::io::puts,"puts".into()
-                    ).to_cross(vm)
+            vm.borrow().def(
+                "puts",
+                &func::Func::Native(&clay::prelude::io::puts, "puts".into()).to_var(vm),
             );
-            vm.borrow()
-                .def(
-                    "input",
-                    &func::Func::Native(
-                        &clay::prelude::io::input,"input".into()
-                    ).to_cross(vm)
+
+            vm.borrow().def(
+                "input",
+                &func::Func::Native(&clay::prelude::io::input, "input".into()).to_var(vm),
             );
-            vm.borrow()
-                .def(
-                    "debug",
-                    &func::Func::Native(
-                        &clay::prelude::debug::debug,"debug".into()
-                    ).to_cross(vm)
+
+            vm.borrow().def(
+                "debug",
+                &func::Func::Native(&clay::prelude::debug::debug, "debug".into()).to_var(vm),
+            );
+
+            vm.borrow().def(
+                "add",
+                &func::Func::Native(&clay::prelude::math::add, "add".into()).to_var(vm),
             );
         }
 
         vm
     }
 
-    pub fn get_handle(&mut self)->&mut Receiver<()>{
+    pub fn get_handle(&mut self) -> &mut Receiver<()> {
         &mut self.handle
     }
 
-    pub fn spawn(&self,task:impl StdFuture<Output = Signal> + Send + 'static){
+    pub fn schedule(&mut self) -> ErrSignal<()> {
+        match self.scheduler.try_send(()) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(Abort::ThrowError(
+                VmError::new(
+                    &format!("Vm@{:?}进行clay异步函数调度失败", self as *const Runtime),
+                    Some(Box::new(e)),
+                )
+                .into(),
+            )),
+        }
+    }
+
+    pub fn spawn(&self, task: impl StdFuture<Output = Signal> + Send + 'static) {
         self.async_runtime.spawn(task);
     }
 
@@ -134,26 +153,26 @@ impl Runtime {
 }
 
 impl Context for Runtime {
-    fn def(&self, name: &str, value:&Var) {
+    fn def(&self, name: &str, value: &Var) {
         self.global_context.def(name, value);
     }
-    fn get(&self, name: &str)->Signal {
+    fn get(&self, name: &str) -> Signal {
         self.global_context.get(name)
     }
-    fn has(&self, name: &str)->bool {
+    fn has(&self, name: &str) -> bool {
         self.global_context.has(name)
     }
-    fn set(&self, name: &str, value:&Var) {
+    fn set(&self, name: &str, value: &Var) {
         self.global_context.set(name, value)
     }
 }
 
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy)]
 pub struct Vm(&'static Cell<Runtime>);
 
 impl Deref for Vm {
     type Target = Cell<Runtime>;
-    fn deref(&self)->&'static Self::Target {
+    fn deref(&self) -> &'static Self::Target {
         &self.0
     }
 }

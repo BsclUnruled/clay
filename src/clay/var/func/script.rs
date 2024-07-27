@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use crate::clay::{var::{array::Array, ToVar}, vm::{env, signal::{Abort, Signal}, Token}};
+use crate::clay::{var::{array::Array, ToVar}, vm::{env, signal::{Abort, Signal}, Code}};
 use super::Args;
 use crate::clay::vm::Eval;
 
@@ -8,7 +8,7 @@ pub struct Script{
     pub(super) name:String,
     args_name:Vec<String>,
     rest:Option<String>,
-    pub(super) code:Vec<Token>,
+    pub(super) code:Vec<Code>,
 }
 
 impl Script{
@@ -29,36 +29,34 @@ impl Script{
                     Some(name)=>name,
                     None=>return Err(Abort::Throw(vm.borrow().undef()?))
                 },&match args.get(index){
-                    Some(arg)=>arg,
+                    Some(arg)=>arg.clone(),
                     None=>return Err(Abort::Throw(vm.borrow().undef()?))
-                }.eval(vm,Rc::clone(&ctx))?);
+                });
                 ()
             }
             match &self.rest{
                 Some(name)=>{
                     ctx.def(name,{
                         &(if args.len()<self.args_name.len(){
-                            Array::new(vec![]).to_cross(vm)
+                            Array::new(vec![]).to_var(vm)
                         }else{
                             Array::new(
                                 // build((vm,&args[self.args_name.len()..],Rc::clone(&ctx)))?
                                 {
                                     let args = &args[self.args_name.len()..];
                                     let hc = args.into_iter()
-                                        .fold(Ok(Vec::with_capacity(args.len())),|acc,arg|{
+                                        .fold(Ok(Vec::with_capacity(args.len())),|acc: Result<Vec<crate::clay::var::Var>, Abort>,cross|{
                                             match acc{
                                                 Ok(mut acc_vec)=>{
-                                                    match arg.eval(vm,Rc::clone(&ctx)){
-                                                        Ok(cross)=>Ok({acc_vec.push(cross);acc_vec}),
-                                                        Err(e)=>return Err(e)
-                                                    }
+                                                    acc_vec.push(cross.clone());
+                                                    Ok(acc_vec)
                                                 }
                                                 Err(e)=>return Err(e)
                                             }
                                     });
                                     hc
                                 }?
-                            ).to_cross(vm)
+                            ).to_var(vm)
                         })
                     });
                 },
@@ -72,7 +70,7 @@ impl Script{
         }
     }
 
-    pub fn new(name:Option<String>,args_name:Vec<String>, rest:Option<String>, code:Vec<Token>)->Self{
+    pub fn new(name:Option<String>,args_name:Vec<String>, rest:Option<String>, code:&[Code])->Self{
         let addr:() = ();
         Self{
             name:match name{
@@ -81,7 +79,7 @@ impl Script{
             },
             args_name,
             rest,
-            code,
+            code:code.to_vec(),
         }
     }
 }

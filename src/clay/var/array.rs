@@ -1,10 +1,58 @@
-use std::{cell::RefCell,iter};
-use super::Var;
-use crate::clay::{var::ToVar, vm::{error, signal::{Abort, Signal}}};
+use std::{cell::RefCell, fmt::Display, iter};
+use super::{func::Args, Var};
+use crate::clay::{var::Virtual, vm::{error, signal::{Abort, Signal}}};
 
-pub type Array = RefCell<Vec<Var>>;
+#[derive(Debug)]
+pub struct Array{
+    inner: RefCell<Vec<Var>>,
+}
 
-impl ToVar for Array{
+impl Display for Array{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f,"[")?;
+        
+        match self.borrow().get(0){
+            Some(v) => Display::fmt(v,f),
+            None => Ok(()),
+        }?;
+
+        for x in self.borrow().iter(){
+            write!(f,", ")?;
+
+            match x.unbox(){
+                Ok(v) => Ok(Display::fmt(&**v,f)),
+                Err(_) => Err(std::fmt::Error{}),
+            }??;
+        }
+        write!(f,"]")?;
+        Ok(())
+    }
+}
+
+impl Array{
+    pub fn borrow(&self)->std::cell::Ref<'_, Vec<Var>>{
+        self.inner.borrow()
+    }
+
+    pub fn borrow_mut(&self)->std::cell::RefMut<'_, Vec<Var>>{
+        self.inner.borrow_mut()
+    }
+
+    pub fn new(v:Vec<Var>)->Self{
+        Self{
+            inner:RefCell::new(v),
+        }
+    }
+}
+
+impl Virtual for Array{
+    fn as_func(&self,_:Args)->Signal
+    where Self:Sized + 'static{
+        Err(
+            error::not_a_func()
+        )
+    }
+
     fn gc_iter(&self,this:&Var) -> Result<Box<dyn Iterator<Item = Signal>>, Abort>
         where Self:Sized + 'static {
         // let hc = self.borrow()
@@ -40,7 +88,7 @@ impl ToVar for Array{
 fn deref(a:&Var)->Signal{Ok(a.clone())}
 
 pub fn new()->Array{
-    RefCell::new(Vec::<Var>::new())
+    Array::new(vec![])
 }
 
 // fn array_ctor(_:Args)->Signal{

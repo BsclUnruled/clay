@@ -1,4 +1,4 @@
-#[derive(Clone,Copy)]
+#[derive(Clone,Copy,Debug)]
 pub enum Mark{
     New,Marked,Unmarked,
 }
