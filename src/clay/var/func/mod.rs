@@ -2,15 +2,12 @@ use std::rc::Rc;
 use crate::clay::vm::runtime::Vm;
 use crate::clay::vm::env::Context;
 use crate::clay::vm::{signal::Signal, Token};
-
-use super::{Cross, ToCross};
+use super::ToVar;
 
 //pub mod args;
 //pub mod coro;
 //pub mod native;
 pub mod script;
-
-use corosensei::Yielder;
 pub use script::Script;
 
 
@@ -18,7 +15,7 @@ pub type Args<'l> = (
     Vm,
     &'l [Token],
     Rc<dyn Context>,
-    &'l Yielder<Cross, Signal>,
+    // &'l Yielder<Var, Signal>,
 );
 
 pub type Function = 
@@ -44,20 +41,27 @@ pub type Function =
 // }
 
 pub enum Func{
-    Native(Function),
+    Native(Function,String),
     Script(Script),
     //Coro(Coro)
     // Functor
 }
 
-impl ToCross for Func{}
+impl ToVar for Func{}
 
 impl Func{
     pub fn call(&self, args: Args) -> Signal{
         match self {
-            Func::Native(n) => n(args),
+            Func::Native(n,_) => n(args),
             Func::Script(s) => s.call(args),
             //Func::Coro(f)=> f.resume(args)
+        }
+    }
+
+    pub fn name(&self)->&str{
+        match self {
+            Func::Native(_,name) => name,
+            Func::Script(s) => &s.name,
         }
     }
 }

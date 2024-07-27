@@ -2,12 +2,10 @@ use std::any::Any;
 use std::cell::Cell;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
-
 use num_bigint::BigInt;
-
 use super::vm::gc::Mark;
 use super::vm::runtime::Vm;
-use super::vm::signal::Abort;
+use super::vm::signal::{Abort, ErrSignal, Signal};
 
 pub mod func;
 pub mod array;
@@ -15,65 +13,69 @@ pub mod undef;
 pub mod object;
 pub mod string;
 pub mod lambda;
-//pub mod future;
+pub mod future;
 
-// pub trait Var: Any {
-//     fn get(&self, name: &str) -> Cross;
-//     fn set(&self, name: &str, value: Cross);
-// }
+pub trait ToVar:Any + 'static{
+    fn to_cross(self:Self,vm:Vm) -> Var where Self:Sized + 'static{
+        Var::new(Box::new(self),vm)
+    }
 
-// pub fn to_cross(value: Box<dyn Var>) -> Cross {
-//     Cross::new(value)
-// }
-
-// impl<T> From<T> for Cross{
-//     fn from(value: T) -> Self {
-//         Cross::new(Box::new(value))
-//     }
-// }
-
-pub trait ToCross{
-    fn to_cross(self:Self,vm:Vm) -> Cross where Self:Sized + 'static{
-        Cross::new(Box::new(self),vm)
+    fn gc_iter(&self,_this:&Var) -> ErrSignal<Box<dyn Iterator<Item=Signal> + '_>>
+    where Self:Sized + 'static{
+        Ok(Box::new(std::iter::empty()))
     }
 }
 
-pub struct CrossWrap<T: Any>(T);
+// impl dyn ToVar{
+//     #[inline]
+//     pub fn is<T: Any>(&self) -> bool {
+//         // 获取实例化此函数的类型的 `TypeId`。
+//         let t = TypeId::of::<T>();
 
-impl<T:'static> ToCross for CrossWrap<T> {
-    // fn to_cross(self) -> Cross {
-    //     Cross::new(Box::new(self))
-    // }
-}
+//         // 在 trait 对象 (`self`) 中获取该类型的 `TypeId`。
+//         let concrete = self.type_id();
 
-impl ToCross for Cross {
-    fn to_cross(self,_:Vm) -> Cross {
+//         // 比较两个 `TypeId` 的相等性。
+//         t == concrete
+//     }
+// }
+
+// pub struct CrossWrap<T: Any>(T);
+
+// impl<T:'static> ToVar for CrossWrap<T> {
+//     // fn to_cross(self) -> Cross {
+//     //     Cross::new(Box::new(self))
+//     // }
+// }
+
+impl ToVar for Var {
+    fn to_cross(self,_:Vm) -> Var {
         self
     }
 }
 
-impl ToCross for Rc<VarBox> {
-    fn to_cross(self,_:Vm) -> Cross {
-        Cross { weak: Rc::downgrade(&self) }
+impl ToVar for Rc<VarBox> {
+    fn to_cross(self,_:Vm) -> Var {
+        Var { weak: Rc::downgrade(&self) }
     }
 }
 
-impl ToCross for Weak<VarBox> {
-    fn to_cross(self,_:Vm) -> Cross {
-        Cross { weak: self }
+impl ToVar for Weak<VarBox> {
+    fn to_cross(self,_:Vm) -> Var {
+        Var { weak: self }
     }
 }
 
-impl ToCross for Box<dyn Any> {
-    fn to_cross(self,vm:Vm) -> Cross {
-        Cross::new(self,vm)
+impl ToVar for Box<dyn ToVar> {
+    fn to_cross(self,vm:Vm) -> Var {
+        Var::new(self,vm)
     }
 }
 
-impl ToCross for BigInt{}
-impl ToCross for f64{}
-impl ToCross for String{}
-impl ToCross for bool{}
+impl ToVar for BigInt{}
+impl ToVar for f64{}
+impl ToVar for String{}
+impl ToVar for bool{}
 
 // impl<T:'static> ToCross for T{
 //     fn to_cross(self) -> Cross{
@@ -84,11 +86,11 @@ impl ToCross for bool{}
 pub struct VarBox {
     mark: Cell<Mark>,
     id: usize,
-    value: Box<dyn Any>,
+    value: Box<dyn ToVar>,
 }
 
 impl VarBox {
-    pub fn new(value: Box<dyn Any>,vm:Vm) -> Self {
+    pub fn new(value: Box<dyn ToVar>,vm:Vm) -> Self {
         Self {
             mark: Cell::new(Mark::New),
             id: vm.borrow_mut().get_id(),
@@ -111,14 +113,22 @@ impl VarBox {
     pub fn set_mark(&self, mark: Mark) {
         self.mark.set(mark)
     }
-    pub fn cast<T:ToCross + 'static>(&self) -> Option<&T> {
-        // if self.value.type_id() == TypeId::of::<T>() {
-        //     let ptr: *const dyn Any = self.value.as_ref();
-        //     Some(unsafe { &*(ptr as *const T) }) //cum rust
-        // } else {
-        //     None
-        // }
-        self.value.downcast_ref::<T>()
+    
+    // pub fn cast<T:ToVar + 'static>(&self) -> Option<&T> {
+    //     // if self.value.type_id() == TypeId::of::<T>() {
+    //     //     let ptr: *const dyn Any = self.value.as_ref();
+    //     //     Some(unsafe { &*(ptr as *const T) }) //cum rust
+    //     // } else {
+    //     //     None
+    //     // }
+    //     self.value.as_ref().downcast_ref::<T>()
+    // }
+
+    pub fn cast<T: ToVar>(&self) -> Option<&T> {
+        //pub trait ToVar:Any + 'static
+        let _hc: &dyn ToVar = self.value.as_ref();
+        //<dyn Any>::downcast_ref::<T>(hc as &dyn Any)
+        None
     }
 
     pub fn ptr(&self)->*const Self{
@@ -133,33 +143,39 @@ impl VarBox {
 // }
 
 impl Deref for VarBox {
-    type Target = dyn Any;
+    type Target = dyn ToVar;
     fn deref(&self) -> &Self::Target {
         &*self.value
     }
 }
 
+unsafe impl Sync for VarBox {}
+unsafe impl Send for VarBox {}
+
 #[derive(Debug, Clone)]
-pub struct Cross {
+pub struct Var {
     weak: Weak<VarBox>,
 }
 
-impl Cross {
-    pub fn uncross(&self) -> Result<Rc<VarBox>,Abort> {
+impl Var {
+    pub fn unbox(&self) -> Result<Rc<VarBox>,Abort> {
         match self.weak.upgrade() {
             Some(var) => Ok(var),
             None=>//vm.borrow().undef().uncross(vm)
                 Err(
                     Abort::ThrowString(
-                        format!("Error:变量已被回收({:?})",self as *const Cross as *const ())
+                        format!("Error:变量已被回收({:?})",self as *const Var as *const ())
                     )
                 )
         }
     }
 
-    pub fn new(value: Box<dyn Any>,vm:Vm) -> Self {
+    pub fn new(value: Box<dyn ToVar>,vm:Vm) -> Self {
         Self {
             weak:vm.borrow_mut().push_heap(VarBox::new(value,vm)),
         }
     }
 }
+
+unsafe impl Sync for Var {}
+unsafe impl Send for Var {}

@@ -1,13 +1,46 @@
-use std::cell::RefCell;
-use super::Cross;
-use crate::clay::var::ToCross;
+use std::{cell::RefCell,iter};
+use super::Var;
+use crate::clay::{var::ToVar, vm::{error, signal::{Abort, Signal}}};
 
-pub type Array = RefCell<Vec<Cross>>;
+pub type Array = RefCell<Vec<Var>>;
 
-impl ToCross for Array{}
+impl ToVar for Array{
+    fn gc_iter(&self,this:&Var) -> Result<Box<dyn Iterator<Item = Signal>>, Abort>
+        where Self:Sized + 'static {
+        // let hc = self.borrow()
+        //     .iter()
+        //     .map(deref);
+        // Box::new(hc)
+
+        let this = this.clone();
+        
+        let mut conuter = 0;
+
+        Ok(Box::new(iter::from_fn(move||{
+            let hc = match this.unbox(){
+                Ok(v) => v,
+                Err(e) => return Some(Err(e)),
+            };
+
+            let ori:&Array = match hc.cast(){
+                Some(v) => v,
+                None => return Some(Err(
+                    error::use_dropped()
+                )),
+            };
+
+            let index = conuter;
+            conuter += 1;
+            let x = ori.borrow().get(index).map(deref);
+            x
+        })))
+    }
+}
+
+fn deref(a:&Var)->Signal{Ok(a.clone())}
 
 pub fn new()->Array{
-    RefCell::new(Vec::<Cross>::new())
+    RefCell::new(Vec::<Var>::new())
 }
 
 // fn array_ctor(_:Args)->Signal{

@@ -1,13 +1,11 @@
-use corosensei::{Coroutine, Yielder};
 use std::{
-    collections::{HashMap, LinkedList},
-    rc::{Rc, Weak},
+    collections::{HashMap, LinkedList}, ops::Deref, rc::{Rc, Weak}
 };
-
-use crate::clay::{Cell,self, var::{func, undef, Cross, ToCross, VarBox}};
+use tokio::sync::mpsc::{Receiver, Sender, channel};
+use crate::clay::{Cell,self, var::{future::StdFuture,func, undef, Var, ToVar, VarBox}};
 
 use super::{
-    env::{self, Context}, signal::Signal
+    env::{self, Context}, signal::{Abort, ErrSignal, Signal}
 };
 
 pub struct Runtime {
@@ -19,10 +17,16 @@ pub struct Runtime {
 
     //undef:Cross,
     //lambda:Cross,
-    mark_sweep: Coroutine<(), (), ()>,
+    async_runtime:tokio::runtime::Runtime,
+
+    scheduler:Sender<()>,
+    handle:Receiver<()>,
 
     global_context: Rc<dyn Context>,
 }
+
+unsafe impl Send for Runtime {}
+unsafe impl Sync for Runtime {}
 
 impl Runtime {
     pub fn get_context(&self)->Rc<dyn Context> {
@@ -37,6 +41,10 @@ impl Runtime {
                 id
             }
         }
+    }
+
+    pub fn async_runtime(&self)->&tokio::runtime::Runtime {
+        &self.async_runtime
     }
 
     pub fn back_id(&mut self, id: usize) {
@@ -54,17 +62,12 @@ impl Runtime {
         self.global_context.get("undef")
     }
 
-    pub fn gc(&mut self) {
-        match self.mark_sweep.resume(()) {
-            corosensei::CoroutineResult::Yield(_) => (),
-            corosensei::CoroutineResult::Return(_) => panic!("Error:gc协程退出"),
-        }
-    }
-
-    pub fn new() -> Vm {
+    pub fn new() -> ErrSignal<Vm>{
         let global = HashMap::new();
 
         let global_context = Rc::new((Cell::new(global), Some(env::undef_ctx())));
+
+        let (scheduler, handle) = channel(1);
 
         let hc = Self {
             id_counter: 0,
@@ -72,14 +75,19 @@ impl Runtime {
 
             heap: LinkedList::new(),
 
-            mark_sweep: Coroutine::new(Self::default_mark_sweep),
+            async_runtime:match tokio::runtime::Runtime::new(){
+                Ok(rt) => rt,
+                Err(e) => return Err(Abort::ThrowError(Box::new(e))),
+            },
+            scheduler,
+            handle,
 
             global_context,
         };
 
-        let hc = Box::leak(Box::new(Cell::new(hc)));
+        let hc = Vm(Box::leak(Box::new(Cell::new(hc))));
 
-        Self::init(hc)
+        Ok(Self::init(hc))
     }
 
     fn init(vm:Vm)->Vm {
@@ -90,14 +98,21 @@ impl Runtime {
                 .def(
                     "puts",
                     &func::Func::Native(
-                        &clay::prelude::io::puts
+                        &clay::prelude::io::puts,"puts".into()
                     ).to_cross(vm)
             );
             vm.borrow()
                 .def(
                     "input",
                     &func::Func::Native(
-                        &clay::prelude::io::input
+                        &clay::prelude::io::input,"input".into()
+                    ).to_cross(vm)
+            );
+            vm.borrow()
+                .def(
+                    "debug",
+                    &func::Func::Native(
+                        &clay::prelude::debug::debug,"debug".into()
                     ).to_cross(vm)
             );
         }
@@ -105,14 +120,12 @@ impl Runtime {
         vm
     }
 
-    fn default_mark_sweep(ctrl: &Yielder<(), ()>, _: ()) {
-        //todo
-        // let step = 100;
-        // let mut count = 0;
+    pub fn get_handle(&mut self)->&mut Receiver<()>{
+        &mut self.handle
+    }
 
-        loop {
-            ctrl.suspend(())
-        }
+    pub fn spawn(&self,task:impl StdFuture<Output = Signal> + Send + 'static){
+        self.async_runtime.spawn(task);
     }
 
     // pub fn lambda(&self)->Cross{
@@ -121,7 +134,7 @@ impl Runtime {
 }
 
 impl Context for Runtime {
-    fn def(&self, name: &str, value:&Cross) {
+    fn def(&self, name: &str, value:&Var) {
         self.global_context.def(name, value);
     }
     fn get(&self, name: &str)->Signal {
@@ -130,9 +143,20 @@ impl Context for Runtime {
     fn has(&self, name: &str)->bool {
         self.global_context.has(name)
     }
-    fn set(&self, name: &str, value:&Cross) {
+    fn set(&self, name: &str, value:&Var) {
         self.global_context.set(name, value)
     }
 }
 
-pub type Vm = &'static Cell<Runtime>;
+#[derive(Clone,Copy)]
+pub struct Vm(&'static Cell<Runtime>);
+
+impl Deref for Vm {
+    type Target = Cell<Runtime>;
+    fn deref(&self)->&'static Self::Target {
+        &self.0
+    }
+}
+
+unsafe impl Send for Vm {}
+unsafe impl Sync for Vm {}

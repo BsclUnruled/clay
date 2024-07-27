@@ -1,11 +1,10 @@
-use std::rc::Rc;
-use corosensei::Yielder;
 use env::Context;
+use std::rc::Rc;
 use num_bigint::BigInt;
 use runtime::Vm;
 use signal::{Abort, Signal};
-use crate::clay::var::ToCross;
-use super::var::{func::Func, string,Cross};
+use crate::clay::var::ToVar;
+use super::var::{func::Func, string,Var};
 pub mod gc;
 pub mod error;
 pub mod keys;
@@ -31,7 +30,7 @@ pub enum Token{
 
     //Option(String),
     //Lambda(Vec<String>,Box<Code>),
-    The(Cross)
+    The(Var)
 }
 
 // impl ToString for Code{
@@ -57,15 +56,15 @@ pub enum Token{
 // }
 
 pub trait Eval {
-    fn eval(&self,vm:Vm,ctx:Rc<dyn Context>,ctrl:&Yielder<Cross,Signal>)->Signal;
+    fn eval(&self,vm:Vm,ctx:Rc<dyn Context>)->Signal;
 }
 
 impl Eval for String{
-    fn eval(&self,vm:Vm,ctx:Rc<dyn Context>,ctrl:&Yielder<Cross,Signal>)->Signal{
+    fn eval(&self,vm:Vm,ctx:Rc<dyn Context>)->Signal{
         use crate::clay::parse::Parser;
         let parser = Parser::new(self);
         match parser.parse(){
-            Ok(code)=>code.eval(vm,ctx,ctrl),
+            Ok(code)=>code.eval(vm,ctx),
             Err(e)=>Err(
                 Abort::ThrowString(e)
             )
@@ -74,14 +73,14 @@ impl Eval for String{
 }
 
 impl Eval for [Token]{
-    fn eval(&self,vm:Vm,ctx:Rc<dyn Context>,ctrl:&Yielder<Cross,Signal>)->Signal{
+    fn eval(&self,vm:Vm,ctx:Rc<dyn Context>)->Signal{
         match self.get(0){
             None=>vm.borrow().undef().into(),
             Some(func_sym)=>{
-                match func_sym.eval(vm,Rc::clone(&ctx),ctrl){
+                match func_sym.eval(vm,Rc::clone(&ctx)){
                     Ok(func)=>{
-                        match func.uncross()?.cast::<Func>(){
-                            Some(f)=>f.call((vm,&self[1..],Rc::clone(&ctx),ctrl)),
+                        match func.unbox()?.cast::<Func>(){
+                            Some(f)=>f.call((vm,&self[1..],Rc::clone(&ctx))),
                             None=>Err(
                                 Abort::ThrowString(
                                     "不是函数(from Eval for [Code])".to_owned()
@@ -97,7 +96,7 @@ impl Eval for [Token]{
 }
 
 impl Eval for Token{
-    fn eval(&self,vm:Vm,ctx:Rc<dyn Context>,ctrl:&Yielder<Cross,Signal>)->Signal{
+    fn eval(&self,vm:Vm,ctx:Rc<dyn Context>)->Signal{
         match self{
             Self::Ident(ref s)=>ctx.get(s)?,
             Self::Int(ref i)=>i.clone().to_cross(vm),
@@ -112,7 +111,7 @@ impl Eval for Token{
                 let mut result = vm.borrow().undef()?;
 
                 for line in b{
-                    result = line.eval(vm,Rc::clone(&new_ctx),ctrl)?;
+                    result = line.eval(vm,Rc::clone(&new_ctx))?;
                 }
                 result
             },
@@ -121,11 +120,12 @@ impl Eval for Token{
                     match args.get(0){
                         Some(fun)=>fun,
                         None=>return Err(
-                            Abort::ThrowString(
-                                format!("Error: 变量已回收(from Eval for Code::Bracket)")
-                            )
+                            // Abort::ThrowString(
+                            //     format!("Error: 变量已回收(from Eval for Code::Bracket)")
+                            // )
+                            error::use_dropped()
                         )
-                    }.eval(vm,Rc::clone(&ctx),ctrl)?
+                    }.eval(vm,Rc::clone(&ctx))?
                 }else{
                     let hc = match args.get(0){
                         Some(fun)=>fun,
@@ -134,7 +134,7 @@ impl Eval for Token{
                                 format!("Error: 变量已回收(from Eval for Code::Bracket)")
                             )
                         )
-                    }.eval(vm,Rc::clone(&ctx),ctrl)?.uncross()?;
+                    }.eval(vm,Rc::clone(&ctx))?.unbox()?;
                     let func:&Func = match hc.cast(){
                         Some(f)=>f,
                         None=>return Err(
@@ -143,7 +143,7 @@ impl Eval for Token{
                             )
                         )
                     };
-                    func.call((vm,&args[1..],Rc::clone(&ctx),ctrl))?
+                    func.call((vm,&args[1..],Rc::clone(&ctx)))?
                 }
             },
             Self::Middle(ref args)=>{
@@ -154,7 +154,12 @@ impl Eval for Token{
                             vm.borrow().undef()?
                         )
                     )
-                }.eval(vm,Rc::clone(&ctx),ctrl)?.uncross()?;
+                }.eval(vm,Rc::clone(&ctx))?.unbox()?;
+
+                #[cfg(debug_assertions)]{
+                    println!("尝试执行函数")
+                }
+
                 let func:&Func = match hc.cast(){
                     Some(f)=>f,
                     None=>return Err(
@@ -163,7 +168,7 @@ impl Eval for Token{
                         )
                     )
                 };
-                func.call((vm,&args[1..],Rc::clone(&ctx),ctrl))?
+                func.call((vm,&args[1..],Rc::clone(&ctx)))?
             }
             Self::The(ref c)=>c.clone(),
         }.into()

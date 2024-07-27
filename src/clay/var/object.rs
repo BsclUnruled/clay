@@ -1,13 +1,13 @@
-use super::ToCross;
-use super::Cross;
+use super::ToVar;
+use super::Var;
 use std::collections::HashMap;
 use std::cell::RefCell;
 
 pub struct Object {
-    this:RefCell<HashMap<String,Cross>>
+    this:RefCell<HashMap<String,Var>>
 }
 
-impl ToCross for Object{}
+impl ToVar for Object{}
 
 // impl Object {
 //     pub fn new() -> Self {

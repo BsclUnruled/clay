@@ -1,5 +1,5 @@
 use crate::clay::{
-    var::{func::Args, ToCross},
+    var::{func::Args, ToVar},
     vm::{
         signal::{Abort, Signal},
         Eval, Token,
@@ -9,7 +9,7 @@ use std::io::{BufRead, Write};
 use std::rc::Rc;
 
 pub fn puts(args: Args) -> Signal {
-    let (vm, args, ctx, ctrl) = args;
+    let (vm, args, ctx) = args;
     match args.get(0) {
         Some(msg_t) => {
             match msg_t {
@@ -17,8 +17,8 @@ pub fn puts(args: Args) -> Signal {
                     println!("{}", msg)
                 }
                 _ => {
-                    let msg_c = msg_t.eval(vm, Rc::clone(&ctx), ctrl)?;
-                    match msg_c.uncross()?.cast::<String>() {
+                    let msg_c = msg_t.eval(vm, Rc::clone(&ctx))?;
+                    match msg_c.unbox()?.cast::<String>() {
                         Some(msg) => println!("{}", msg),
                         None => {
                             return Err(Abort::ThrowString("puts: expected a string".to_string()))
@@ -36,15 +36,15 @@ pub fn puts(args: Args) -> Signal {
 }
 
 pub fn input(args: Args) -> Signal {
-    let (vm, args, ctx, ctrl) = args;
+    let (vm, args, ctx) = args;
     match args.get(0) {
         Some(msg_t) => match msg_t {
             Token::Str(msg) => {
                 Ok(inner_input(msg.to_owned()).to_cross(vm))
             }
             _ => {
-                let msg_c = msg_t.eval(vm, Rc::clone(&ctx), ctrl)?;
-                match msg_c.uncross()?.cast::<String>() {
+                let msg_c = msg_t.eval(vm, Rc::clone(&ctx))?;
+                match msg_c.unbox()?.cast::<String>() {
                     Some(msg) =>Ok(inner_input(msg.to_owned()).to_cross(vm)),
                     None => return Err(Abort::ThrowString(
                         format!("Error:puts希望第一个参数是字符串,但传入了 {:?}",msg_c)

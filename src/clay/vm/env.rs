@@ -1,22 +1,22 @@
 use crate::clay::Cell;
 use std::collections::HashMap;
 
-use crate::clay::var::Cross;
+use crate::clay::var::Var;
 use std::rc::Rc;
 use super::signal::Abort;
 use super::signal::Signal;
 
 pub trait Context {
     fn get(&self, name: &str)->Signal;
-    fn set(&self, name: &str, value:&Cross);
+    fn set(&self, name: &str, value:&Var);
     fn has(&self, name: &str)->bool;
     fn boxed(self:Self)->Box<dyn Context> where Self:Sized+'static{
         Box::new(self)
     }
-    fn def(&self, name: &str, value:&Cross);
+    fn def(&self, name: &str, value:&Var);
 }
 
-impl Context for (Cell<HashMap<String, Cross>>,Option<Rc<dyn Context>>){
+impl Context for (Cell<HashMap<String, Var>>,Option<Rc<dyn Context>>){
     fn get(&self, name: &str)->Signal {
         match self.0.borrow().get(name){
             Some(var) => Ok(var.clone()),
@@ -30,7 +30,7 @@ impl Context for (Cell<HashMap<String, Cross>>,Option<Rc<dyn Context>>){
             }
         }
     }
-    fn set(&self, name: &str, value:&Cross) {
+    fn set(&self, name: &str, value:&Var) {
         // self.0.borrow_mut().insert(name.to_string(), value.clone());
         if self.has(name){
             self.0.borrow_mut().insert(name.to_string(), value.clone());
@@ -44,7 +44,7 @@ impl Context for (Cell<HashMap<String, Cross>>,Option<Rc<dyn Context>>){
     fn has(&self, name: &str)->bool {
         self.0.borrow().contains_key(name)
     }
-    fn def(&self, name: &str, value:&Cross){
+    fn def(&self, name: &str, value:&Var){
         self.0.borrow_mut().insert(name.to_string(), value.clone());
     }
 }
@@ -54,7 +54,7 @@ pub fn default(upper:Option<Rc<dyn Context>>)->Rc<dyn Context>{
 }
 
 impl Context for (){
-    fn def(&self, name: &str, _:&Cross) {
+    fn def(&self, name: &str, _:&Var) {
         panic!("Error(def {:?} to undef_ctx):没有作用域了 (from undef_ctx)",name)
     }
     fn get(&self, name: &str)->Signal {
@@ -67,7 +67,7 @@ impl Context for (){
     fn has(&self, _: &str)->bool {
         false
     }
-    fn set(&self, name: &str, _:&Cross) {
+    fn set(&self, name: &str, _:&Var) {
         panic!("Error(set {:?} to undef_ctx):没有作用域了 (from undef_ctx)",name)
     }
 }

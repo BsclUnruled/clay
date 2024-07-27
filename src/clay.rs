@@ -17,7 +17,7 @@ impl<T> Cell<T>{
         }
     }
 
-    pub fn borrow_mut(&self) -> &mut T {
+    pub fn borrow_mut<'s>(&'s self) -> &'s mut T {
         unsafe {
             &mut *self.inner.get()
         }

@@ -1,11 +1,11 @@
 use std::rc::Rc;
-
-use crate::clay::{var::{array::Array, ToCross}, vm::{env, signal::{Abort, Signal}, Token}};
+use crate::clay::{var::{array::Array, ToVar}, vm::{env, signal::{Abort, Signal}, Token}};
 use super::Args;
 use crate::clay::vm::Eval;
 
 #[derive(Debug)]
 pub struct Script{
+    pub(super) name:String,
     args_name:Vec<String>,
     rest:Option<String>,
     pub(super) code:Vec<Token>,
@@ -13,7 +13,7 @@ pub struct Script{
 
 impl Script{
     pub fn call(&self,arga4:Args)->Signal{
-        let (vm,args,ctx,ctrl) = arga4;
+        let (vm,args,ctx) = arga4;
         // env::new_scope(||
         // })
 
@@ -31,7 +31,7 @@ impl Script{
                 },&match args.get(index){
                     Some(arg)=>arg,
                     None=>return Err(Abort::Throw(vm.borrow().undef()?))
-                }.eval(vm,Rc::clone(&ctx),ctrl)?);
+                }.eval(vm,Rc::clone(&ctx))?);
                 ()
             }
             match &self.rest{
@@ -48,7 +48,7 @@ impl Script{
                                         .fold(Ok(Vec::with_capacity(args.len())),|acc,arg|{
                                             match acc{
                                                 Ok(mut acc_vec)=>{
-                                                    match arg.eval(vm,Rc::clone(&ctx),ctrl){
+                                                    match arg.eval(vm,Rc::clone(&ctx)){
                                                         Ok(cross)=>Ok({acc_vec.push(cross);acc_vec}),
                                                         Err(e)=>return Err(e)
                                                     }
@@ -66,14 +66,19 @@ impl Script{
             }
             let mut result = vm.borrow().undef().into();
             for code in &self.code{
-                result = code.eval(vm,Rc::clone(&ctx),ctrl);
+                result = code.eval(vm,Rc::clone(&ctx));
             }
             result
         }
     }
 
-    pub fn new(args_name:Vec<String>, rest:Option<String>, code:Vec<Token>)->Self{
+    pub fn new(name:Option<String>,args_name:Vec<String>, rest:Option<String>, code:Vec<Token>)->Self{
+        let addr:() = ();
         Self{
+            name:match name{
+                Some(name)=>name,
+                None=>format!("lambda@{:?}",&addr as *const ())
+            },
             args_name,
             rest,
             code,

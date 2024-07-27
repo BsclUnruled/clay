@@ -1,12 +1,12 @@
-use super::ToCross;
-use crate::clay::{var::Cross, vm::runtime::Vm};
+use super::ToVar;
+use crate::clay::{var::Var, vm::runtime::Vm};
 
 #[derive(Debug)]
-struct Undef();
+pub struct Undef();
 
-impl ToCross for Undef {}
+impl ToVar for Undef {}
 
-pub fn new(vm:Vm)->Cross{
+pub fn new(vm:Vm)->Var{
     Undef().to_cross(vm)
 }
 

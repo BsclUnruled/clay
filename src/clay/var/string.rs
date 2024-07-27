@@ -1,5 +1,4 @@
 use std::rc::Rc;
-
 use crate::clay::vm::env::Context;
 
 pub fn escape(s: &str) -> String{
