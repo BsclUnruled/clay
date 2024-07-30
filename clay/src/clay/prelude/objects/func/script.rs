@@ -1,7 +1,8 @@
 use std::rc::Rc;
-use crate::clay::{var::{array::Array, ToVar}, vm::{env, signal::{Abort, Signal}, Code}};
+use crate::clay::{var::ToVar, vm::{env, signal::{Abort, Signal}, Code}};
 use super::Args;
 use crate::clay::vm::Eval;
+use crate::clay::prelude::objects::array::Array;
 
 #[derive(Debug)]
 pub struct Script{
@@ -18,25 +19,25 @@ impl Script{
         // })
 
         let ctx = env::default(
-            Some(Rc::clone(&ctx))
+            vm,Some(Rc::clone(&ctx))
         );
 
         {
             for index in 0..(
                 if self.args_name.len() > args.len(){args.len()}else{self.args_name.len()}
             ){
-                ctx.def( match &self.args_name.get(index){
+                ctx.def(vm, match &self.args_name.get(index){
                     Some(name)=>name,
-                    None=>return Err(Abort::Throw(vm.borrow().undef()?))
+                    None=>return Err(Abort::Throw(vm.undef()?))
                 },&match args.get(index){
                     Some(arg)=>arg.clone(),
-                    None=>return Err(Abort::Throw(vm.borrow().undef()?))
+                    None=>return Err(Abort::Throw(vm.undef()?))
                 });
                 ()
             }
             match &self.rest{
                 Some(name)=>{
-                    ctx.def(name,{
+                    ctx.def(vm,name,{
                         &(if args.len()<self.args_name.len(){
                             Array::new(vec![]).to_var(vm)
                         }else{
@@ -62,7 +63,7 @@ impl Script{
                 },
                 None=>()
             }
-            let mut result = vm.borrow().undef().into();
+            let mut result = vm.undef().into();
             for code in &self.code{
                 result = code.eval(vm,Rc::clone(&ctx));
             }

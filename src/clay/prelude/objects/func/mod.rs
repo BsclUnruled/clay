@@ -1,22 +1,11 @@
-use super::{Virtual, Var};
-use crate::clay::vm::env::Context;
-use crate::clay::vm::runtime::Vm;
+use crate::clay::var::Virtual;
 use crate::clay::vm::signal::Signal;
 use std::fmt::{Debug, Display};
-use std::rc::Rc;
 
-//pub mod args;
-//pub mod coro;
-//pub mod native;
 pub mod script;
 pub use script::Script;
-
-pub type Args<'l> = (
-    Vm,
-    &'l [Var],
-    Rc<dyn Context>,
-    // &'l Yielder<Var, Signal>,
-);
+pub mod args;
+pub use args::Args;
 
 pub type Function = &'static dyn Fn(Args) -> Signal;
 

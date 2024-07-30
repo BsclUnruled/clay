@@ -1,16 +1,16 @@
 use std::{fs, io::Write};
 
 use clay::{
-    parse, vm::{
+    parse,
+    vm::{
         error::VmError,
         signal::{Abort, ErrSignal},
-    }
+    },
 };
-use num_bigint::BigInt;
 
 pub mod clay;
 
-fn clay_main() -> ErrSignal<()> {
+fn main() -> ErrSignal<()> {
     // println!("Hello, world!");
     // use clay::var::undef::test;
     // test();
@@ -44,7 +44,7 @@ fn clay_main() -> ErrSignal<()> {
             }
         };
 
-        println!("\n{:#?}", hc);
+        println!("\n{:#?}", hc.format());
     }
 
     let path: &str = &match std::env::args().nth(1) {
@@ -98,15 +98,9 @@ fn clay_main() -> ErrSignal<()> {
             println!("\n开始执行\n")
         }
 
-        println!("{:#?}",
-            vm.undef()?
-                .unbox()?
-                .cast::<BigInt>()?
-        );
-
         println!(
             "\n{:#?}",
-            match vm.run_code(&(hc.format(vm)?)) {
+            match vm.run_code(&(hc.format())) {
                 Ok(v) => v,
                 Err(e) => {
                     match e {
@@ -121,8 +115,4 @@ fn clay_main() -> ErrSignal<()> {
     };
 
     Ok(())
-}
-
-fn main(){
-    println!("{:#?}",clay_main())
 }

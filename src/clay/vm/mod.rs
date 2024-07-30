@@ -1,22 +1,20 @@
-use super::var::{string, ToVar, Var};
-use env::Context;
+use super::{prelude::objects::{func::{script, Func}, string}, var::{ToVar, Var, VarBox}};
 use num_bigint::BigInt;
 use runtime::Vm;
-use signal::{Abort, Signal};
+use signal::{Abort, ErrSignal, Signal};
 use std::rc::Rc;
 pub use runtime::Runtime;
 
 pub mod env;
 pub mod error;
 pub mod gc;
-pub mod keys;
 pub mod runtime;
 pub mod signal;
 
 
 #[derive(Debug, Clone)]
 pub enum Token {
-    Ident(String),
+    Id(String),
 
     Int(BigInt),
     Float(f64),
@@ -34,63 +32,142 @@ pub enum Token {
 }
 
 impl Token {
-    pub fn format(&self) -> Code {
+    pub fn format(&self,vm:Vm) -> ErrSignal<Code> {
         match self {
-            Token::Ident(ref s) => Code::Ident(s.clone()),
+            Token::Id(ref s) => Ok(Code::Id(s.clone())),
 
-            Token::Int(ref i) => Code::Int(i.clone()),
-            Token::Float(ref f) => Code::Float(*f),
+            Token::Int(ref i) => Ok(Code::The(i.to_owned().to_var(vm))),
+            Token::Float(ref f) => Ok(Code::The(f.to_var(vm))),
 
-            Token::Str(ref s) => Code::Str(s.clone()),
-            Token::Template(ref s) => Code::Template(s.clone()),
+            Token::Str(ref s) => Ok(Code::The(s.to_owned().to_var(vm))),
+            Token::Template(ref s) => Ok(Code::Template(s.clone())),
 
-            Token::Bracket(ref b) => Code::Bracket(b.iter().map(|t| t.format()).collect()),
-            Token::Block(ref b) => Code::Block(b.iter().map(|t| t.format()).collect()),
-            Token::Middle(ref b) => Code::Middle(b.iter().map(|t| t.format()).collect()),
+            // Token::Bracket(ref b) => Code::Bracket(b.iter().map(|t| t.format()).collect()),
+            // Token::Block(ref b) => Code::Block(b.iter().map(|t| t.format()).collect()),
+            // Token::Middle(ref b) => Code::Middle(b.iter().map(|t| t.format()).collect()),
 
-            Token::The(ref c) => Code::The(c.clone()),
+            Token::Block(ref b)=>{
+                Ok(Code::Block({
+                    let mut hc = Vec::with_capacity(b.len());
+                    for code in b {
+                        hc.push(code.format(vm)?);
+                    }
+                    hc
+                }))
+            }
+
+            Token::Middle(_)=>
+                Err(Abort::ThrowString(
+                    format!("unexpected token: middle")
+                )),
+
+            Token::Bracket(ref expr)=>{
+                //todo!("重头戏")
+
+                let mut bracket = vec![];
+                let mut stage1 = vec![];
+
+                for token in expr.iter(){
+                    if let Token::Id(ref s) = token {
+                        match s.as_str() {
+                            "+" | "-" | "*" | "/" | "++" | "--" | "%" |
+                            "==" | "!=" | ">=" | "<=" | ">" | "<" |
+                            "&&" | "||" | "!" | "neg" | "@" | ":" | "~"
+                            =>{
+                                stage1.push(bracket);
+                                stage1.push(vec![token]);
+
+                                bracket = vec![];
+                            }
+                            _=>bracket.push(token)
+                        }
+                    }else{
+                        bracket.push(token)
+                    }
+                };
+
+                drop(bracket);
+
+                let stage1_iter = stage1.into_iter().map(|tv|(tv,0usize));
+
+                todo!("重头戏: 对运算符进行提升");
+
+                //()
+            }
+
+            Token::The(ref c) => Ok(Code::The(c.clone())),
         }
     }
 }
 
+pub type CodeVec = Vec<Code>;
+
 #[derive(Debug, Clone)]
 pub enum Code {
-    Ident(String),
+    Id(String),
 
-    Int(BigInt),
-    Float(f64),
+    Return(CodeVec),
+    Throw(CodeVec),
+    Break(CodeVec),
+    Continue(CodeVec),
+    If(CodeVec, CodeVec, CodeVec),
+    Try(CodeVec,CodeVec),
 
-    Str(String),
+    Op{
+        op:Operstor,
+        x:CodeVec,
+        y:CodeVec
+    },
+
+    Apply(CodeVec),
+    Block(CodeVec),
+
+    Func{
+        name: Option<String>,
+        args_names: Vec<String>,
+        body: CodeVec,
+    },
+
     Template(String),
-
-    Bracket(Vec<Code>),
-    Block(Vec<Code>),
-    Middle(Vec<Code>),
 
     //Option(String),
     //Lambda(Vec<String>,Box<Code>),
     The(Var),
+
+    //暂时保留
+    // Meta{//储存文件位置信息
+    //     file:Option<String>,
+    //     line:u32
+    // }
+}
+
+#[derive(Debug, Clone)]
+pub enum Operstor {
+    Add,Sub,Mul,Div,Mod,IntDiv,Pow,
+    Eq,Ne,Gt,Ge,Lt,Le,
+    And,Or,Not,
+    Neg,Index(CodeVec)
 }
 
 pub trait Eval {
-    fn eval(&self, vm: Vm, ctx: Rc<dyn Context>) -> Signal;
+    fn eval(&self, vm: Vm, ctx: Rc<VarBox>) -> Signal;
 }
 
 impl Eval for String {
-    fn eval(&self, vm: Vm, ctx: Rc<dyn Context>) -> Signal {
+    fn eval(&self, vm: Vm, ctx: Rc<VarBox>) -> Signal {
         use crate::clay::parse::Parser;
         let parser = Parser::new(self);
         match parser.parse() {
-            Ok(code) => code.format().eval(vm, ctx),
+            Ok(code) => code.format(vm)?.eval(vm, ctx),
             Err(e) => Err(Abort::ThrowString(e)),
         }
     }
 }
 
 impl Eval for [Code] {
-    fn eval(&self, vm: Vm, ctx: Rc<dyn Context>) -> Signal {
+    fn eval(&self, vm: Vm, ctx: Rc<VarBox>) -> Signal {
         match self.get(0) {
-            None => vm.borrow().undef(),
+            None => vm.undef(),
             Some(func_sym) => match func_sym.eval(vm, Rc::clone(&ctx)) {
                 Ok(var) => {
                     let hc = {
@@ -109,85 +186,88 @@ impl Eval for [Code] {
 }
 
 impl Eval for Code {
-    fn eval(&self, vm: Vm, ctx: Rc<dyn Context>) -> Signal {
+    fn eval(&self, vm: Vm, ctx: Rc<VarBox>) -> Signal {
         match self {
-            Self::Ident(ref s) => ctx.get(s)?,
-            Self::Int(ref i) => i.clone().to_var(vm),
-            Self::Float(ref f) => (*f).to_var(vm),
-            Self::Str(ref s) => s.to_owned().to_var(vm),
+            Self::Id(ref s) => ctx.get(vm,s)?,
+            Self::The(ref c) => c.clone(),
             Self::Template(ref s) => string::template(s, ctx).to_var(vm),
             Self::Block(ref b) => {
-                let new_ctx = env::default(Some(Rc::clone(&ctx)));
+                let new_ctx = env::default(vm,Some(Rc::clone(&ctx)));
 
-                let mut result = vm.borrow().undef()?;
+                let mut result = vm.undef()?;
 
                 for line in b {
                     result = line.eval(vm, Rc::clone(&new_ctx))?;
                 }
                 result
             }
-            Self::Bracket(ref args) => {
-                if args.len() == 1 {
-                    match args.get(0) {
-                        Some(fun) => fun,
-                        None => {
-                            return Err(
-                                // Abort::ThrowString(
-                                //     format!("Error: 变量已回收(from Eval for Code::Bracket)")
-                                // )
-                                error::use_dropped(),
-                            );
-                        }
-                    }
-                    .eval(vm, Rc::clone(&ctx))?
-                } else {
-                    let var = match args.get(0) {
-                        Some(fun) => fun,
-                        None => {
-                            return Err(Abort::ThrowString(format!(
-                                "Error: 变量已回收(from Eval for Code::Bracket)"
-                            )))
-                        }
-                    }
-                    .eval(vm, Rc::clone(&ctx))?;
-
-                    let hc = {
-                        let mut tobe: Vec<Var> = Vec::with_capacity(args.len() - 1);
-                        for code in args.iter().skip(1) {
-                            tobe.push(code.eval(vm, Rc::clone(&ctx))?);
-                        }
-                        tobe
-                    };
-                    var.unbox()?.as_func((vm, &hc, Rc::clone(&ctx)))?
+            Self::Func { name, args_names, body }=>{
+                let script = script::Script::new(
+                    &name,
+                    args_names,
+                    &ctx,
+                    &body
+                );
+                Func::Script(script).to_var(vm)
+            }
+            Self::Apply(ref args) => {
+                Self::apply_expr(vm, args, &ctx)?
+            }
+            Code::Break(ref expr)=> return  Err(
+                Abort::Break(
+                    Code::apply_expr(vm,expr,&ctx)?
+                )
+            ),
+            Code::Continue(_)=> return  Err(
+                Abort::Continue
+            ),
+            Code::Return(ref expr)=> return  Err(
+                Abort::Return(
+                    Code::apply_expr(vm,expr,&ctx)?
+                )
+            ),
+            Code::Throw(ref expr)=> return  Err(
+                Abort::Throw(Code::apply_expr(vm, expr, &ctx)?)
+            ),
+            Code::If(ref cond, ref then, ref else_then) => {
+                let cond_rc = Code::apply_expr(vm, cond, &ctx)?.unbox()?;
+                let cond_bool = *cond_rc.cast()?;
+                if cond_bool {
+                    Code::apply_expr(vm, then, &ctx)?
+                }else{
+                    Code::apply_expr(vm, else_then, &ctx)?
                 }
             }
-            Self::Middle(ref args) => {
-                #[cfg(debug_assertions)]
-                {
-                    println!("尝试执行函数")
-                }
-
-                let var = match args.get(0) {
-                    Some(fun) => fun,
-                    None => {
-                        return Err(Abort::ThrowString(format!(
-                            "Error: 变量已回收(from Eval for Code::Bracket)"
-                        )))
-                    }
-                }
-                .eval(vm, Rc::clone(&ctx))?;
-                
-                let hc = {
-                    let mut tobe: Vec<Var> = Vec::with_capacity(args.len() - 1);
-                    for code in args.iter().skip(1) {
-                        tobe.push(code.eval(vm, Rc::clone(&ctx))?);
-                    }
-                    tobe
-                };
-                var.unbox()?.as_func((vm, &hc, Rc::clone(&ctx)))?
+            Code::Try(ref try_block, ref catch_block) => {
+                let hc = Code::apply_expr(vm, try_block, &ctx);
+                if let Err(Abort::Throw(e)) = hc {
+                    Code::apply_expr(vm, &catch_block, &ctx)?
+                        .unbox()?
+                        .as_func((vm, &[e], Rc::clone(&ctx)))
+                } else{
+                    hc
+                }?
             }
-            Self::The(ref c) => c.clone(),
+            Code::Op{op,x,y}=>match op{
+                _=>todo!("运算符")
+            }
         }
         .into()
+    }
+}
+
+impl Code{
+    pub fn apply_expr(vm: Vm, expr: &[Code], ctx:&Rc<VarBox>) -> Signal {
+        //至少有两个元素
+        let var = expr[0].eval(vm, Rc::clone(&ctx))?;
+
+        let hc = {
+            let mut tobe: Vec<Var> = Vec::with_capacity(expr.len() - 1);
+            for code in expr.iter().skip(1) {
+                tobe.push(code.eval(vm, Rc::clone(&ctx))?);
+            }
+            tobe
+        };
+        var.unbox()?.as_func((vm, &hc, Rc::clone(&ctx)))
     }
 }

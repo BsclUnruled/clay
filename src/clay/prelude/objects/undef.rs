@@ -1,6 +1,6 @@
 use std::fmt::Display;
-
-use super::{func::Args, ToVar, Virtual};
+use crate::clay::var::{ToVar, Virtual};
+use super::func::Args;
 use crate::clay::{var::Var, vm::{error, runtime::Vm, signal::Signal}};
 
 #[derive(Debug)]

@@ -3,7 +3,7 @@ use crate::clay::vm::signal::Signal;
 use crate::clay::vm::{error, runtime::Vm};
 
 use super::func::Args;
-use super::Virtual;
+use crate::clay::var::Virtual;
 use std::fmt::Display;
 pub use std::future::Future as StdFuture;
 
@@ -27,10 +27,8 @@ impl Virtual for Future{
 
 impl Future{
     pub fn new(task:impl StdFuture<Output=Signal> + Send +'static,vm:Vm) -> Self{
-        let vm2 = vm.clone();
-        vm.borrow().spawn(async move{
-            let hc = vm2.borrow_mut();
-            match hc.get_handle().recv().await{
+        vm.spawn(async move{
+            match vm.schedule().recv().await{
                 Some(_) => task.await,
                 None => Err(error::async_scheduler_error())
             }

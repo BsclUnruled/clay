@@ -1,6 +1,7 @@
-use std::{cell::RefCell, fmt::Display, iter};
-use super::{func::Args, Var};
-use crate::clay::{var::Virtual, vm::{error, signal::{Abort, Signal}}};
+use std::{cell::RefCell, fmt::Display};
+use super::func::Args;
+use crate::clay::{var::Virtual, vm::{error, signal::Signal}};
+use crate::clay::var::Var;
 
 #[derive(Debug)]
 pub struct Array{
@@ -53,39 +54,12 @@ impl Virtual for Array{
         )
     }
 
-    fn gc_iter(&self,this:&Var) -> Result<Box<dyn Iterator<Item = Signal>>, Abort>
-        where Self:Sized + 'static {
-        // let hc = self.borrow()
-        //     .iter()
-        //     .map(deref);
-        // Box::new(hc)
-
-        let this = this.clone();
-        
-        let mut conuter = 0;
-
-        Ok(Box::new(iter::from_fn(move||{
-            let hc = match this.unbox(){
-                Ok(v) => v,
-                Err(e) => return Some(Err(e)),
-            };
-
-            let ori:&Array = match hc.cast(){
-                Some(v) => v,
-                None => return Some(Err(
-                    error::use_dropped()
-                )),
-            };
-
-            let index = conuter;
-            conuter += 1;
-            let x = ori.borrow().get(index).map(deref);
-            x
-        })))
+    fn for_each(&self,marker:fn(&Var)){
+        for x in self.borrow().iter(){
+            marker(x)
+        }
     }
 }
-
-fn deref(a:&Var)->Signal{Ok(a.clone())}
 
 pub fn new()->Array{
     Array::new(vec![])

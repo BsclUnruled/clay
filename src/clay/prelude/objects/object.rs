@@ -1,9 +1,7 @@
 use crate::clay::vm::error;
 use crate::clay::vm::signal::Signal;
-
 use super::func::Args;
-use super::Virtual;
-use super::Var;
+use crate::clay::var::{Var,Virtual};
 use std::collections::HashMap;
 use std::cell::RefCell;
 use std::fmt::Display;

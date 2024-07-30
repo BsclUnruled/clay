@@ -1,32 +1,37 @@
-use std::any::{Any, TypeId};
+use std::any::{type_name, Any, TypeId};
 use std::cell::Cell;
+use std::collections::HashMap;
 use std::fmt::{self, Debug, Display};
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
-use func::Args;
 use num_bigint::BigInt;
-use super::vm::error;
+use super::prelude::objects::func::Args;
+use super::vm::{env, error};
 use super::vm::gc::Mark;
 use super::vm::runtime::Vm;
 use super::vm::signal::{Abort, ErrSignal, Signal};
 
-pub mod func;
-pub mod array;
-pub mod undef;
-pub mod object;
-pub mod string;
-pub mod lambda;
-pub mod future;
-
 pub trait Virtual:Display + Debug + 'static{
-    fn gc_iter(&self,_this:&Var) -> ErrSignal<Box<dyn Iterator<Item=Signal> + '_>>{
-        Ok(Box::new(std::iter::empty()))
-    }
+    fn for_each(&self,_:fn(&Var)){}
 
     fn as_func(&self,_:Args)->Signal{
         Err(
             error::not_a_func()
         )
+    }
+
+    fn get(&self,vm:Vm,_:&str)->Signal{
+        vm.undef()
+    }
+
+    fn set(&self,_:Vm,name:&str,_:&Var)->ErrSignal<()>{
+        Err(error::set_unsetable(type_name::<Self>(), name))
+    }
+
+    fn has(&self,_:Vm,_:&str)->bool{false}
+    
+    fn def(&self,_:Vm,name:&str,_:&Var)->ErrSignal<()>{
+        Err(error::def_undefable(type_name::<Self>(), name))
     }
 }
 
@@ -223,16 +228,25 @@ impl Virtual for bool{}
 
 #[derive(Debug)]
 pub struct VarBox {
-    mark: Cell<Mark>,
-    id: usize,
-    value: Box<dyn Virtual>,
+    pub(crate) mark: Cell<Mark>,
+    pub(crate) id: usize,
+    pub(crate) value: Box<dyn Virtual>,
 }
 
 impl VarBox {
+    pub fn global_context() -> Self {
+        let global = HashMap::new();
+        
+        Self{
+            mark:Cell::new(Mark::New),
+            id:0,
+            value:Box::new(env::Context(crate::clay::Cell::new(global), Some(env::void_ctx())))
+        }
+    }
     pub fn new(value: Box<dyn Virtual>,vm:Vm) -> Self {
         Self {
             mark: Cell::new(Mark::New),
-            id: vm.borrow_mut().get_id(),
+            id: vm.get_id(),
             value,
         }
     }
@@ -289,7 +303,7 @@ unsafe impl Send for VarBox {}
 
 #[derive( Clone)]
 pub struct Var {
-    weak: Weak<VarBox>,
+    pub(crate) weak: Weak<VarBox>,
 }
 
 impl Var {
@@ -299,7 +313,7 @@ impl Var {
             None=>//vm.borrow().undef().uncross(vm)
                 Err(
                     Abort::ThrowString(
-                        format!("Error:变量已被回收({:?})",self as *const Var as *const ())
+                        format!("Error:变量已被回收({:p})",self)
                     )
                 )
         }
@@ -307,7 +321,7 @@ impl Var {
 
     pub fn new(value: Box<dyn Virtual>,vm:Vm) -> Self {
         Self {
-            weak:vm.borrow_mut().push_heap(VarBox::new(value,vm)),
+            weak:vm.push_heap(VarBox::new(value,vm)),
         }
     }
 }

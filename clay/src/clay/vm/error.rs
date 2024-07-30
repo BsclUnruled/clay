@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::{Debug, Display}, ops::Add};
+use std::{error::Error, fmt::Display, ops::Add};
 
 use super::Abort;
 
@@ -6,22 +6,13 @@ pub fn throw(message: &str) -> Abort {
     Abort::ThrowError(VmError::new(message, None).into())
 }
 
+#[derive(Debug)]
 pub struct VmError {
     message: String,
     source: Option<Box<dyn Error>>,
 }
 
 impl Display for VmError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let message = match self.source {
-            None => format!("{}", self.message),
-            Some(ref e) => format!("{}\n\tfrom: {}", self.message, e),
-        };
-        write!(f, "Error: {}", message)
-    }
-}
-
-impl Debug for VmError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let message = match self.source {
             None => format!("{}", self.message),
@@ -105,11 +96,4 @@ pub fn def_undefable(type_name: &str, property_name: &str)->Abort{
         "def undefable\n\t\t尝试在{}上定义『{}』属性",
         property_name, type_name
     ))
-}
-
-pub fn cast_error(expcet: &str, actual:&str)->Abort{
-    throw(&format!(
-r"cast error
-                类型转换失败
-                期望类型: {}, 实际类型: {}", expcet, actual))
 }

@@ -1,0 +1,10 @@
+puts '越过长城，走向世界';puts 'Hello, world!'
+
+puts undef
+
+puts{'Hello'}
+
+{
+    puts (input '请输入;你的名字：')
+    puts \(){puts 'nj'}
+}

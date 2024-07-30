@@ -19,7 +19,7 @@ fn closure(result: &mut Vec<Token>, token: &mut Vec<char>) -> Result<(), String>
             //获取str第一个字符
             let hc = t.chars().next().unwrap();
             //判断是否为数字开头
-            hc.is_numeric()
+            hc.is_numeric() || hc == '-'
         };
 
         if yes {
@@ -37,7 +37,7 @@ fn closure(result: &mut Vec<Token>, token: &mut Vec<char>) -> Result<(), String>
                 },
             };
         } else {
-            result.push(Token::Id(t));
+            result.push(Token::Ident(t));
             Ok(())
         }
     } else {
@@ -86,7 +86,7 @@ impl<'a> Parser<'a> {
 
     // + - * / % ^ ! & | < > =   -> <-
     // ++ -- ** // += -= *= /= %= == != <= >= && ||
-    // : @ ~
+    // ? : @ ~
     fn parse_symbol(&self, sym: char) -> Return {
         #[cfg(debug_assertions)]
         println!("parse_symbol");
@@ -96,7 +96,7 @@ impl<'a> Parser<'a> {
         match sym {
             ':' | '@' | '~' => {
                 token.push(sym);
-                return Ok(Token::Id(token.iter().collect()));
+                return Ok(Token::Ident(token.iter().collect()));
             }
             '+' => {
                 token.push(sym);
@@ -105,9 +105,9 @@ impl<'a> Parser<'a> {
                         '+' | '=' => {
                             token.push(c);
                             self.next();
-                            return Ok(Token::Id(token.iter().collect()));
+                            return Ok(Token::Ident(token.iter().collect()));
                         }
-                        _ => return Ok(Token::Id(token.iter().collect())),
+                        _ => return Ok(Token::Ident(token.iter().collect())),
                     },
                     None => {
                         return Err(format!(
@@ -119,17 +119,22 @@ impl<'a> Parser<'a> {
             }
             '-' => {
                 token.push(sym);
-                if let Some(c) = self.peek() {
-                    match c {
+                match self.peek() {
+                    Some(c) => match c {
                         '-' | '=' | '>' => {
                             token.push(c);
                             self.next();
-                            return Ok(Token::Id(token.iter().collect()));
+                            return Ok(Token::Ident(token.iter().collect()));
                         }
-                        _ => return Ok(Token::Id(token.iter().collect())),
+                        _ => return Ok(Token::Ident(token.iter().collect())),
+                    },
+                    None => {
+                        return Err(format!(
+                            "Unexpected end of code(from parse_symbol({:?}))",
+                            sym
+                        ))
                     }
-                };
-                return Ok(Token::Id(token.iter().collect()));
+                }
             }
             '*' => {
                 token.push(sym);
@@ -138,9 +143,9 @@ impl<'a> Parser<'a> {
                         '*' | '=' => {
                             token.push(c);
                             self.next();
-                            return Ok(Token::Id(token.iter().collect()));
+                            return Ok(Token::Ident(token.iter().collect()));
                         }
-                        _ => return Ok(Token::Id(token.iter().collect())),
+                        _ => return Ok(Token::Ident(token.iter().collect())),
                     },
                     None => {
                         return Err(format!(
@@ -157,9 +162,9 @@ impl<'a> Parser<'a> {
                         '/' | '=' => {
                             token.push(c);
                             self.next();
-                            return Ok(Token::Id(token.iter().collect()));
+                            return Ok(Token::Ident(token.iter().collect()));
                         }
-                        _ => return Ok(Token::Id(token.iter().collect())),
+                        _ => return Ok(Token::Ident(token.iter().collect())),
                     },
                     None => {
                         return Err(format!(
@@ -176,9 +181,9 @@ impl<'a> Parser<'a> {
                         '=' => {
                             token.push(c);
                             self.next();
-                            return Ok(Token::Id(token.iter().collect()));
+                            return Ok(Token::Ident(token.iter().collect()));
                         }
-                        _ => return Ok(Token::Id(token.iter().collect())),
+                        _ => return Ok(Token::Ident(token.iter().collect())),
                     },
                     None => {
                         return Err(format!(
@@ -195,9 +200,9 @@ impl<'a> Parser<'a> {
                         '=' => {
                             token.push(c);
                             self.next();
-                            return Ok(Token::Id(token.iter().collect()));
+                            return Ok(Token::Ident(token.iter().collect()));
                         }
-                        _ => return Ok(Token::Id(token.iter().collect())),
+                        _ => return Ok(Token::Ident(token.iter().collect())),
                     },
                     None => {
                         return Err(format!(
@@ -214,9 +219,9 @@ impl<'a> Parser<'a> {
                         '=' => {
                             token.push(c);
                             self.next();
-                            return Ok(Token::Id(token.iter().collect()));
+                            return Ok(Token::Ident(token.iter().collect()));
                         }
-                        _ => return Ok(Token::Id(token.iter().collect())),
+                        _ => return Ok(Token::Ident(token.iter().collect())),
                     },
                     None => {
                         return Err(format!(
@@ -233,9 +238,9 @@ impl<'a> Parser<'a> {
                         '&' => {
                             token.push(c);
                             self.next();
-                            return Ok(Token::Id(token.iter().collect()));
+                            return Ok(Token::Ident(token.iter().collect()));
                         }
-                        _ => return Ok(Token::Id(token.iter().collect())),
+                        _ => return Ok(Token::Ident(token.iter().collect())),
                     },
                     None => {
                         return Err(format!(
@@ -252,9 +257,9 @@ impl<'a> Parser<'a> {
                         '|' => {
                             token.push(c);
                             self.next();
-                            return Ok(Token::Id(token.iter().collect()));
+                            return Ok(Token::Ident(token.iter().collect()));
                         }
-                        _ => return Ok(Token::Id(token.iter().collect())),
+                        _ => return Ok(Token::Ident(token.iter().collect())),
                     },
                     None => {
                         return Err(format!(
@@ -271,9 +276,9 @@ impl<'a> Parser<'a> {
                         '=' => {
                             token.push(c);
                             self.next();
-                            return Ok(Token::Id(token.iter().collect()));
+                            return Ok(Token::Ident(token.iter().collect()));
                         }
-                        _ => return Ok(Token::Id(token.iter().collect())),
+                        _ => return Ok(Token::Ident(token.iter().collect())),
                     },
                     None => {
                         return Err(format!(
@@ -290,9 +295,9 @@ impl<'a> Parser<'a> {
                         '=' | '-' => {
                             token.push(c);
                             self.next();
-                            return Ok(Token::Id(token.iter().collect()));
+                            return Ok(Token::Ident(token.iter().collect()));
                         }
-                        _ => return Ok(Token::Id(token.iter().collect())),
+                        _ => return Ok(Token::Ident(token.iter().collect())),
                     },
                     None => {
                         return Err(format!(
@@ -309,9 +314,9 @@ impl<'a> Parser<'a> {
                         '=' => {
                             token.push(c);
                             self.next();
-                            return Ok(Token::Id(token.iter().collect()));
+                            return Ok(Token::Ident(token.iter().collect()));
                         }
-                        _ => return Ok(Token::Id(token.iter().collect())),
+                        _ => return Ok(Token::Ident(token.iter().collect())),
                     },
                     None => {
                         return Err(format!(
@@ -321,7 +326,7 @@ impl<'a> Parser<'a> {
                     }
                 }
             }
-            _ => return Ok(Token::Id(token.iter().collect())),
+            _ => return Ok(Token::Ident(token.iter().collect())),
         };
     }
 
@@ -521,7 +526,7 @@ impl<'a> Parser<'a> {
         println!("parse_lambda");
 
         Ok(Token::Bracket(vec![
-            Token::Id("\\".to_owned()),
+            Token::Ident("\\".to_owned()),
             {
                 loop {
                     match self.next() {
