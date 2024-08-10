@@ -1,33 +1,10 @@
-use std::{cell::RefCell, fmt::Display};
-use super::func::Args;
-use crate::clay::{var::Virtual, vm::{error, signal::Signal}};
+use std::cell::RefCell;
+use crate::clay::var::Virtual;
 use crate::clay::var::Var;
 
-#[derive(Debug)]
+
 pub struct Array{
     inner: RefCell<Vec<Var>>,
-}
-
-impl Display for Array{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f,"[")?;
-        
-        match self.borrow().get(0){
-            Some(v) => Display::fmt(v,f),
-            None => Ok(()),
-        }?;
-
-        for x in self.borrow().iter(){
-            write!(f,", ")?;
-
-            match x.unbox(){
-                Ok(v) => Ok(Display::fmt(&**v,f)),
-                Err(_) => Err(std::fmt::Error{}),
-            }??;
-        }
-        write!(f,"]")?;
-        Ok(())
-    }
 }
 
 impl Array{
@@ -47,14 +24,11 @@ impl Array{
 }
 
 impl Virtual for Array{
-    fn as_func(&self,_:Args)->Signal
-    where Self:Sized + 'static{
-        Err(
-            error::not_a_func()
-        )
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 
-    fn for_each(&self,marker:fn(&Var)){
+    fn gc_for_each(&self,marker:fn(&Var)){
         for x in self.borrow().iter(){
             marker(x)
         }

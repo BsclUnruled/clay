@@ -1,12 +1,12 @@
-use std::{fs, io::Write};
+use std::{fs, /*io::Write*/};
 
 use clay::{
-    parse, vm::{
-        error::VmError,
-        signal::{Abort, ErrSignal},
-    }
+    parse::{self, /*clay::Rule*/},
+    prelude::repl,
+    vm::signal::{Abort, ErrSignal},
 };
 use num_bigint::BigInt;
+// use pest::Parser;
 
 pub mod clay;
 
@@ -18,47 +18,22 @@ fn clay_main() -> ErrSignal<()> {
     // let vm = clay::vm::Runtime::new();
     // vm.async_runtime().block_on(water());
     //prul
-    println!("clay,启动\n输入exit退出");
-
-    //读取键盘输入
-    loop {
-        print!("输入clay表达式: ");
-
-        match std::io::stdout().flush() {
-            Ok(_) => (),
-            Err(e) => panic!("Error: {:?}", e),
-        };
-
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input).unwrap();
-
-        if input.trim() == "exit" {
-            break;
-        }
-
-        let hc = match parse::Parser::new(&input).parse() {
-            Ok(hc) => hc,
-            Err(e) => {
-                eprintln!("parse error: {}", e);
-                continue;
-            }
-        };
-
-        println!("\n{:#?}", hc);
-    }
 
     let path: &str = &match std::env::args().nth(1) {
         Some(p) => p,
-        None => "test.clay".into(),
+        None => {
+            return {
+                repl::repl()?;
+                Ok(())
+            }
+        }
     };
 
     let code = &match fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("读取文件失败: {}", e);
-            return Err(Abort::ThrowError(Box::<VmError>::new(
-                "读取文件失败".into(),
-            )));
+            return Err(Abort::ThrowString("读取文件失败".into()));
         }
     };
 
@@ -66,9 +41,7 @@ fn clay_main() -> ErrSignal<()> {
         Ok(hc) => hc,
         Err(e) => {
             eprintln!("parse error: {}", e);
-            return Err(Abort::ThrowError(Box::<VmError>::new(
-                "无法解析代码".into(),
-            )));
+            return Err(Abort::ThrowString("无法解析代码".into()));
         }
     };
 
@@ -98,31 +71,58 @@ fn clay_main() -> ErrSignal<()> {
             println!("\n开始执行\n")
         }
 
-        println!("{:#?}",
-            vm.undef()?
-                .unbox()?
-                .cast::<BigInt>()?
-        );
+        println!("{:#?}", vm.undef()?.unbox()?.cast::<BigInt>()?);
 
         println!(
-            "\n{:#?}",
-            match vm.run_code(&(hc.format(vm)?)) {
-                Ok(v) => v,
-                Err(e) => {
-                    match e {
-                        Abort::ThrowError(e) => eprintln!("{}", e),
-                        Abort::ThrowString(s) => eprintln!("Error: {}", s),
-                        _ => eprintln!("Error:不应出现的代码控制流 {:?}", e),
-                    }
-                    return Err(Abort::Exit);
-                }
-            }
+            "\n",
+            // match vm.run_code(&(hc.format(&vm)?),) {
+            //     Ok(v) => v,
+            //     Err(e) => {
+            //         match e {
+            //             Abort::ThrowString(s) => eprintln!("Error: {}", s),
+            //             _ => eprintln!("Error:不应出现的代码控制流 {:?}", e),
+            //         }
+            //         return Err(Abort::Exit);
+            //     }
+            // }
         );
     };
 
     Ok(())
 }
 
-fn main(){
-    println!("{:#?}",clay_main())
+fn main() {
+//     let p = clay::parse::new_parser::ClayParser::parse;
+//     println!("{:#?}",p(Rule::global,
+// r#"
+// for 
+
+// if(12){ 
+//     log (str 12)
+// }else{
+//     qq "wqd"
+// }
+// "#
+//     ));
+//     loop {
+//         print!("\nclay> ");
+
+//         //读取键盘输入
+//         match std::io::stdout().flush() {
+//             Ok(_) => (),
+//             Err(e) => panic!("Error: {:?}", e),
+//         };
+
+//         let mut input = String::new();
+//         std::io::stdin().read_line(&mut input).unwrap();
+
+//         if input.trim() == "exit" {break;}
+
+//         let hc = 
+//             clay::parse::new_parser::ClayParser::parse(Rule::global, &input);
+    
+//         println!("{:#?}\n",hc)
+//     }
+
+    println!("{:#?}", clay_main())
 }

@@ -1,0 +1,107 @@
+WHITESPACE = _{
+    | " "
+    | "\t"
+    | "\n"
+    | "\r"
+    | "--" ~ (!"\n" ~ ANY)* ~ "\n"
+}
+
+expr = {
+    eval ~ (op ~ eval)*
+}
+
+int = ${
+    "-"? ~
+    '0'..'9' ~ 
+    ('0'..'9'|"_")*
+}
+
+float = ${
+    "-"? ~
+    '0'..'9' ~ 
+    ('0'..'9'|"_")* ~
+    "." ~
+    ('0'..'9'|"_")*
+}
+
+raw_str = {
+    "'" ~
+    (!"'" ~ ANY)* ~
+    "'"
+}
+
+escape_str = {
+    "\"" ~
+    ("\\\"" | !"\"" ~ ANY)* ~
+    "\""
+}
+
+template_str = {
+    "`" ~
+    ("\\`" | !"`" ~ ANY)* ~
+    "`"
+}
+
+string = {
+    | raw_str
+    | escape_str
+    | template_str
+}
+
+block = {
+    "{" ~ 
+    (expr ~ (";" | WHITESPACE ~ expr)*)* ~
+    "}"
+}
+
+if_expr = {
+    "if" ~ "(" ~ expr ~ ")" ~ block ~
+    ("elif" ~ "(" ~ expr ~ ")" ~ block)*~
+    "else" ~ block
+}
+
+id = ${
+    !("if" | "else" | "elif" | "struct") ~
+    (!('0'..'9' | "{" | "}" | "(" | ")" | "[" | "]" | "@" | op | WHITESPACE) ~ ANY)~
+    (!("{" | "}" | "(" | ")" | "[" | "]" | "@" | op | WHITESPACE) ~ ANY)*
+}
+
+call = ${
+    no_call_eval ~ (lianable | WHITESPACE+ ~ eval){1,} ~ (!"\n" ~ WHITESPACE)* ~ "\n"
+}
+
+lianable = {
+    | "(" ~ expr ~ ")"
+    | block
+}
+
+no_call_eval = {
+    | "(" ~ expr ~ ")"
+    | if_expr
+    | block
+    | float
+    | int
+    | string
+    | id
+    | WHITESPACE
+}
+
+eval = {
+    | call
+    | if_expr
+    | block
+    | "(" ~ expr ~ ")"
+    | float
+    | int
+    | string
+    | id
+    | WHITESPACE
+}
+
+op = {
+    |"+"
+}
+
+global = {
+    (expr ~ (";" | WHITESPACE ~ expr)*)*
+}

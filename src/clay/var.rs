@@ -1,37 +1,50 @@
-use std::any::{type_name, Any, TypeId};
-use std::cell::Cell;
-use std::collections::HashMap;
-use std::fmt::{self, Debug, Display};
+use std::any::{type_name, Any};
+use std::cell::Cell as StdCell;
+use std::fmt::{self, Debug};
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 use num_bigint::BigInt;
-use super::prelude::objects::func::Args;
-use super::vm::{env, error};
+use super::prelude::objects::args::Args;
+use super::vm::error;
 use super::vm::gc::Mark;
 use super::vm::runtime::Vm;
 use super::vm::signal::{Abort, ErrSignal, Signal};
 
-pub trait Virtual:Display + Debug + 'static{
-    fn for_each(&self,_:fn(&Var)){}
+pub trait Virtual:Any + 'static {
+    fn ptr(&self)->String{format!("{:p}",self)}
 
-    fn as_func(&self,_:Args)->Signal{
+    fn get_ctor(&self)->Option<Var>{//None就是Any为构造函数
+        None
+    }
+
+    fn gc_for_each(&self,_:fn(&Var)){}
+
+    fn call(&self,all:Args)->Signal{
         Err(
-            error::not_a_func()
+            error::not_a_func(*all.vm())
         )
+    }
+
+    fn as_any(&self) -> &dyn Any;
+
+    fn type_name(&self)->&str{
+        type_name::<Self>()
     }
 
     fn get(&self,vm:Vm,_:&str)->Signal{
         vm.undef()
     }
 
-    fn set(&self,_:Vm,name:&str,_:&Var)->ErrSignal<()>{
-        Err(error::set_unsetable(type_name::<Self>(), name))
+    fn set(&self,vm:Vm,name:&str,_value:&Var)->Signal{
+        Err(error::set_unsetable(vm, self.type_name(), name))
     }
 
-    fn has(&self,_:Vm,_:&str)->bool{false}
-    
-    fn def(&self,_:Vm,name:&str,_:&Var)->ErrSignal<()>{
-        Err(error::def_undefable(type_name::<Self>(), name))
+    fn def(&self,vm:Vm,name:&str,_value:&Var)->Signal{
+        Err(error::def_undefable(vm, self.type_name(),name))
+    }
+
+    fn has(&self,_vm:Vm,_name:&str)->bool{
+        false
     }
 }
 
@@ -45,7 +58,7 @@ impl<T:Virtual> ToVar for T{
     }
 }
 
-impl dyn Virtual {
+/*impl dyn Virtual {
     /// Returns `true` if the inner type is the same as `T`.
     ///
     /// # Examples
@@ -97,6 +110,11 @@ impl dyn Virtual {
     /// ```
     #[inline]
     pub fn downcast_ref<T: Virtual>(&self) -> Option<&T> {
+        #[cfg(debug_assertions)]{
+            println!("[Cast] {} -> {} ({})"
+               ,type_name::<Self>(),type_name::<T>(),
+                if self.is::<T>() { "ok" } else { "failed" });
+        }
         if self.is::<T>() {
             // SAFETY: just checked whether we are pointing to the correct type, and we can rely on
             // that check for memory safety because we have implemented ToVar for all types; no other
@@ -166,7 +184,7 @@ impl dyn Virtual {
     /// with the incorrect type is *undefined behavior*.
     #[inline]
     pub unsafe fn downcast_ref_unchecked<T: Virtual>(&self) -> &T {
-        //debug_assert!(self.is::<T>());
+        debug_assert!(self.is::<T>());
         // SAFETY: caller guarantees that T is the correct type
         unsafe { &*(self as *const dyn Virtual as *const T) }
     }
@@ -200,7 +218,7 @@ impl dyn Virtual {
         unsafe { &mut *(self as *mut dyn Virtual as *mut T) }
     }
 }
-
+*/
 // impl dyn ToVar{
 //     #[inline]
 //     pub fn is<T: ToVar>(&self) -> bool {
@@ -215,10 +233,52 @@ impl dyn Virtual {
 //     }
 // }
 
-impl Virtual for BigInt{}
-impl Virtual for f64{}
-impl Virtual for String{}
-impl Virtual for bool{}
+impl Virtual for BigInt{
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+impl Virtual for f64{
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+impl Virtual for String{
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+impl Virtual for bool{
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+pub struct Coro{
+    
+}
+
+// pub struct CoroWrap<R:Any,T: Coroutine<R>>(pub T,PhantomData<R>);
+
+// impl<R:Any,T: Coroutine<R>> CoroWrap<R,T>{
+//     pub fn new(iter: T) -> Self {
+//         Self(iter,PhantomData)
+//     }
+
+//     pub fn none() -> Self{
+//         let hc = #[coroutine] || {
+//             yield 1;
+//             return "foo"
+//         };
+//         Self::new(hc)
+//     }
+// }
+
+// impl<T:'static + Iterator<Item = Var>>  Virtual for CoroWrap<T>{
+//     fn as_any(&self) -> &dyn Any {
+//         self
+//     }
+// }
 
 // impl<T:'static> ToCross for T{
 //     fn to_cross(self) -> Cross{
@@ -226,26 +286,26 @@ impl Virtual for bool{}
 //     }
 // }
 
-#[derive(Debug)]
 pub struct VarBox {
-    pub(crate) mark: Cell<Mark>,
+    pub(crate) mark: StdCell<Mark>,
     pub(crate) id: usize,
     pub(crate) value: Box<dyn Virtual>,
+    //pub(crate) constuctor:Var
 }
 
 impl VarBox {
-    pub fn global_context() -> Self {
-        let global = HashMap::new();
+    // pub fn global_context() -> Self {
+    //     let global = HashMap::new();
         
-        Self{
-            mark:Cell::new(Mark::New),
-            id:0,
-            value:Box::new(env::Context(crate::clay::Cell::new(global), Some(env::void_ctx())))
-        }
-    }
+    //     Self{
+    //         mark:StdCell::new(Mark::New),
+    //         id:0,
+    //         value:Box::new(env::Ctx(crate::clay::Cell::new(global), Some(env::void_ctx())))
+    //     }
+    // }
     pub fn new(value: Box<dyn Virtual>,vm:Vm) -> Self {
         Self {
-            mark: Cell::new(Mark::New),
+            mark: StdCell::new(Mark::New),
             id: vm.get_id(),
             value,
         }
@@ -278,19 +338,15 @@ impl VarBox {
     // }
 
     pub fn cast<T: Virtual>(&self) -> ErrSignal<&T>{
-        match self.value.as_ref().downcast_ref::<T>(){
+        match self.value.as_ref().as_any().downcast_ref::<T>(){
             Some(v)=>Ok(v),
-            None=>Err(error::cast_error(type_name::<T>(), type_name::<Self>()))
+            None=>Err(error::cast_error(type_name::<T>(), self.value.as_ref().type_name()))
         }
-    }
-
-    pub fn ptr(&self)->String{
-        format!("{:?}",&*self as *const Self)
     }
 
     #[cfg(debug_assertions)]
     pub fn is<T:Virtual>(&self)->bool{
-        self.value.is::<T>()
+        self.value.as_any().is::<T>()
     }
 }
 
@@ -329,19 +385,13 @@ impl Var {
     }
 }
 
-impl Display for Var {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f,"{}",match self.unbox(){
-            Ok(var)=>var.to_string(),
-            Err(_)=>Err(fmt::Error{})?
-        })
-    }
-}
-
 impl Debug for Var {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f,"Var{{ weak: {:?} }}",match self.unbox(){
-            Ok(var)=>var,
+        write!(f,"Var{{ id: {}, mark: {:?}, value: {:?} }}",
+        self.unbox().unwrap().id,
+        self.unbox().unwrap().mark.get(),
+        match self.unbox(){
+            Ok(_)=>"todo",
             Err(_)=>Err(fmt::Error{})?
         })
     }

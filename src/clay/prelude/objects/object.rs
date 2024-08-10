@@ -1,6 +1,3 @@
-use crate::clay::vm::error;
-use crate::clay::vm::signal::Signal;
-use super::func::Args;
 use crate::clay::var::{Var,Virtual};
 use std::collections::HashMap;
 use std::cell::RefCell;
@@ -26,11 +23,8 @@ impl Display for Object{
 }
 
 impl Virtual for Object{
-    fn as_func(&self,_:Args)->Signal
-    where Self:Sized + 'static{
-        Err(
-            error::not_a_func()
-        )
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

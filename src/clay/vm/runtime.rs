@@ -1,14 +1,13 @@
+use tokio::{sync::mpsc::{channel, Receiver, Sender}, task::{yield_now, JoinHandle}};
+
 use crate::clay::{
-    self, prelude::objects::{func::Func, undef}, var::{self, ToVar, Var, VarBox}, Cell
+    prelude::{objects::{ args::Args, method, undef}, to_str}, var::{Var, VarBox, Virtual}, Cell
 };
 use std::{
-    collections::LinkedList, ops::Deref, rc::{Rc, Weak}
+    collections::LinkedList, ops::{Deref, DerefMut}, process::exit, rc::{Rc, Weak}
 };
-use futures::FutureExt;
-use tokio::sync::mpsc::{channel, error::TrySendError, Receiver, Sender};
-use crate::clay::prelude::objects::future::StdFuture;
 use super::{
-    gc::gc, signal::{Abort, ErrSignal, Signal}, Code, Eval
+    env::{self, Context}, signal::{Abort, ErrSignal, Signal}, CtxType
 };
 
 pub struct Runtime {
@@ -18,22 +17,85 @@ pub struct Runtime {
 
     heap: LinkedList<Rc<VarBox>>,
 
-    //undef:Cross,
-    //lambda:Cross,
-    async_runtime: tokio::runtime::Runtime,
+    global_context: CtxType,
 
-    scheduler: Sender<()>,
-    handle: Receiver<()>,
+    undef: Option<Var>,
+    r#str:Option<Var>,
 
-    gc_closer:Receiver<()>,
-    gc_teller:Sender<()>,
+    ctrl:Control,
+    lock:Lock,
 
-    global_context: Rc<VarBox>,
-    root: Var,
+    async_runtime:tokio::runtime::Runtime
 }
 
 unsafe impl Send for Runtime {}
 unsafe impl Sync for Runtime {}
+
+pub trait Exit<T>{
+    fn exit(&self,msg:T)->!;
+}
+
+impl Exit<Abort> for Vm{
+    fn exit(&self,msg:Abort)->! {
+        eprint!("{}",msg);
+        exit(1)
+    }
+}
+
+impl Exit<&str> for Vm{
+    fn exit(&self,msg:&str)->! {
+        eprint!("{}",msg);
+        exit(1)
+    }
+}
+
+pub struct InnerLock{
+    start_receiver:Receiver<()>,
+    finish_sender:Sender<()>
+}
+
+#[derive(Clone)]
+pub struct Lock{
+    inner:Rc<Cell<InnerLock>>
+}
+
+impl Deref for Lock {
+    type Target = InnerLock;
+    fn deref(&self) -> &Self::Target {
+        self.inner.borrow()
+    }
+}
+
+impl DerefMut for Lock {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.inner.borrow_mut()
+    }
+}
+
+impl Virtual for Lock {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+pub struct Control{
+    start_sender:Sender<()>,
+    finish_receiver:Receiver<()>
+}
+
+pub fn make_lock()->(Control,Lock){
+    let (start_sender,start_receiver) = channel(1);
+    let (finish_sender,finish_receiver) = channel(1);
+    (
+        Control{start_sender,finish_receiver},
+        Lock{
+            inner:Rc::new(Cell::new(InnerLock{
+                start_receiver,
+                finish_sender
+            }))
+        }
+    )
+}
 
 #[derive(Clone, Copy)]
 pub struct Vm(&'static Cell<Runtime>);
@@ -46,36 +108,54 @@ impl Deref for Vm {
 }
 
 impl Vm {
-    pub fn run_code(&self,code:&Code)->Signal{
-        let ctx = self.get_context();
+    pub fn async_runtime(&self)->&tokio::runtime::Runtime{
+        &self.borrow().async_runtime
+    }
 
-        // self.borrow().async_runtime.spawn();
-
-        self.async_runtime().block_on(async{
-            let gc = gc(self.root(), *self);
-            let task = async {
-                match self.borrow().scheduler.try_send(()) {
-                    Ok(_) => code.eval(*self,ctx),
-                    Err(e) => panic!("Vm@{:p}进行clay异步函数调度失败\n\t{}", self,e)
-                }
-            };
-
-            futures::select!{
-                _ = gc.fuse() => Err(Abort::ThrowString("Gc退出".to_owned())),
-                result = task.fuse() => {
-                    self.borrow().gc_teller.try_send(()).expect("无法通知Gc退出");
-                    result
-                }
+    pub fn run_code(&self,code:Var)->Signal{
+        let vm = *self;
+        self.async_runtime().spawn(async move{
+            loop{
+                let _ = vm.borrow_mut().ctrl.start_sender.blocking_send(());
+                yield_now().await;
+                match vm.borrow_mut().ctrl.finish_receiver.blocking_recv(){
+                    Some(_) => (),
+                    None =>{
+                        #[cfg(debug_assertions)]{
+                            eprintln!("未接收到数据(from Vm::run_code->eventloop)");
+                        }
+                    }
+                };
             }
+        });
+        self.async_runtime().block_on(async{
+            vm.borrow_mut().lock.start_receiver.recv().await.unwrap();
+            let result = 
+                code.unbox()?.call(Args::new(
+                    vm,
+                    &[]
+                ));
+            let _ = vm.borrow_mut().lock.finish_sender.send(()).await;
+            result
         })
     }
 
-    pub fn gc_closer(&self) -> &mut Receiver<()> {
-        &mut self.borrow_mut().gc_closer
+    pub fn spawn(&self,code:Var)->JoinHandle<Signal>{
+        let vm = *self;
+        self.async_runtime().spawn(async move{
+            vm.borrow_mut().lock.start_receiver.recv().await.unwrap();
+            let result = 
+                code.unbox()?.call(Args::new(
+                    vm,
+                    &[]
+                ));
+            let _ = vm.borrow_mut().lock.finish_sender.send(()).await;
+            result
+        })
     }
 
-    pub fn get_context(&self) -> Rc<VarBox> {
-        Rc::clone(&self.borrow().global_context)
+    pub fn get_context(&self) ->&Rc<dyn Context> {
+        &self.borrow().global_context
     }
     pub fn get_id(&self) -> usize {
         let inner = self.borrow_mut();
@@ -87,10 +167,6 @@ impl Vm {
                 id
             }
         }
-    }
-
-    pub fn async_runtime(&self) -> &tokio::runtime::Runtime {
-        &self.borrow().async_runtime
     }
 
     pub fn back_id(&self, id: usize) {
@@ -105,25 +181,21 @@ impl Vm {
     }
 
     pub fn undef(&self) -> Signal {
-        self.borrow().global_context.get(*self,"undef")
+        Ok(self.0.borrow().undef.as_ref().expect("undef被释放了").clone())
     }
 
-    pub fn root(&self)->&Var{
-        &self.borrow().root
+    pub fn r#str(&self)->Signal{
+        Ok(self.0.borrow().r#str.as_ref().expect("r#str被释放了").clone())
     }
 
     pub fn new() -> ErrSignal<Vm> {
         
 
-        let global_context = 
-            Rc::new(var::VarBox::global_context());
+        let global_context = env::default(
+            None
+        );
 
-        let root = Var{weak:Rc::downgrade(&global_context)};
-            
-
-        let (scheduler, handle) = channel(size_of::<()>() * 1 + 1);
-
-        let (gc_teller,gc_closer) = channel(size_of::<()>() * 1 + 1);
+        let (ctrl,lock) = make_lock();
 
         let hc = Runtime {
             id_counter: 1,
@@ -131,19 +203,15 @@ impl Vm {
 
             heap: LinkedList::new(),
 
-            async_runtime: match tokio::runtime::Runtime::new() {
-                Ok(rt) => rt,
-                Err(e) => return Err(Abort::ThrowError(Box::new(e))),
-            },
-            scheduler,
-            handle,
-
-            gc_closer,
-            gc_teller,
-
-            root,
-
             global_context,
+
+            undef: None,
+            r#str: None,
+
+            ctrl,
+            lock,
+
+            async_runtime:tokio::runtime::Runtime::new().unwrap()
         };
 
         let hc = Vm(Box::leak(Box::new(Cell::new(hc))));
@@ -152,41 +220,24 @@ impl Vm {
     }
 
     fn init(vm: Vm) -> Vm {
-        let _ = vm.borrow().global_context.def(vm,"undef", &undef::new(vm));
+        
+                
+        vm.0.borrow_mut().undef = Some(
+            vm.borrow().global_context.def(vm,"undef", &undef::new(vm))
+                .expect("undef载入失败")
+        );
 
-        {
-            let _ = vm.borrow().global_context.def(vm,
-                "puts",
-                &Func::Native(&clay::prelude::io::puts, "puts".into()).to_var(vm),
-            );
-
-            let _ = vm.borrow().global_context.def(vm,
-                "input",
-                &Func::Native(&clay::prelude::io::input, "input".into()).to_var(vm),
-            );
-
-            let _ = vm.borrow().global_context.def(vm,
-                "add",
-                &Func::Native(&clay::prelude::math::add, "add".into()).to_var(vm),
-            );
+        /*global_init*/{
+            method::global_init(vm);
+            to_str::global_init(vm);    
         }
+
+        vm.0.borrow_mut().r#str = Some(
+            vm.borrow().global_context.get(vm,"str")
+                .expect("str载入失败")
+        );
 
         vm
-    }
-
-    pub fn schedule<'f>(&self)
-        -> &mut Receiver<()>{
-        match self.borrow().scheduler.try_send(()) {
-            Ok(_) => &mut self.borrow_mut().handle,
-            Err(e) => match e {
-                TrySendError::Full(_) => &mut self.borrow_mut().handle,
-                TrySendError::Closed(_) => panic!("Vm@{:p}进行clay异步函数调度失败\n\t{}", self,e)
-            }
-        }
-    }
-
-    pub fn spawn(&self, task: impl StdFuture<Output = Signal> + Send + 'static) {
-        self.async_runtime().spawn(task);
     }
 
     pub fn mut_heap(&self) -> &mut LinkedList<Rc<VarBox>> {

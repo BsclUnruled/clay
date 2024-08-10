@@ -1,6 +1,3 @@
-use crate::clay::var::ToVar;
-use crate::clay::var::VarBox;
-use crate::clay::var::Virtual;
 use crate::clay::Cell;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -8,27 +5,38 @@ use std::fmt::Display;
 use crate::clay::var::Var;
 use std::rc::Rc;
 use super::error;
-use super::gc::Mark;
 use super::runtime::Vm;
 use super::signal::Abort;
-use super::signal::ErrSignal;
 use super::signal::Signal;
+use super::CtxType;
 
-pub struct Context(pub(crate)Cell<HashMap<String, Var>>,pub(crate)Option<Rc<VarBox>>);
+pub trait Context{
+    fn get(&self,vm:Vm, name: &str)->Signal;
 
-impl Debug for Context{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Context")
-    }
+    fn set(&self,vm:Vm, name: &str, value:&Var)->Signal;
+
+    fn has(&self,_:Vm, name: &str)->bool;
+
+    fn def(&self,_:Vm , name: &str, value:&Var)->Signal;
+
+    fn for_each(&self,_:fn(&Var)) {}
 }
 
-impl Display for Context{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Context")
-    }
-}
+pub struct Ctx(pub(crate)Cell<HashMap<String, Var>>,pub(crate)Option<CtxType>);
 
-impl Virtual for Context{
+// impl Debug for Ctx{
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "Context")
+//     }
+// }
+
+// impl Display for Ctx{
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "Context")
+//     }
+// }
+
+impl Context for Ctx{
     fn get(&self,vm:Vm, name: &str)->Signal {
         match self.0.borrow().get(name){
             Some(var) => Ok(var.clone()),
@@ -42,11 +50,11 @@ impl Virtual for Context{
             }
         }
     }
-    fn set(&self,vm:Vm, name: &str, value:&Var)->ErrSignal<()>{
+    fn set(&self,vm:Vm, name: &str, value:&Var)->Signal{
         // self.0.borrow_mut().insert(name.to_string(), value.clone());
         if self.has(vm,name){
             self.0.borrow_mut().insert(name.to_string(), value.clone());
-            Ok(())
+            Ok(value.clone())
         }else{
             match &self.1{
                 Some(parent) => parent.set(vm,name, value),
@@ -59,14 +67,30 @@ impl Virtual for Context{
         self.0.borrow().contains_key(name)
     }
 
-    fn def(&self,_:Vm , name: &str, value:&Var)->ErrSignal<()>{
+    fn def(&self,_:Vm , name: &str, value:&Var)->Signal{
         self.0.borrow_mut().insert(name.to_string(), value.clone());
-        Ok(())
+        Ok(value.clone())
+    }
+
+    fn for_each(&self,f:fn(&Var)) {
+        for (_, var) in self.0.borrow().iter() {
+            f(var);
+        }
     }
 }
 
-pub fn default(vm:Vm,upper:Option<Rc<VarBox>>)->Rc<VarBox>{
-    Context(Cell::new(HashMap::new()),upper).to_var(vm).unbox().unwrap()
+pub fn from_map(map:HashMap<String, Var>,upper:Option<CtxType>) -> CtxType{
+    Rc::new(Ctx(
+        Cell::new(map),
+        upper
+    ))
+}
+
+pub fn default(upper:Option<CtxType>)->CtxType{
+    Rc::new(Ctx(
+        Cell::new(HashMap::new()),
+        upper
+    ))
 }
 
 #[derive(Debug)]
@@ -78,9 +102,11 @@ impl Display for Void{
     }
 }
 
-impl Virtual for Void{
-    fn def(&self,_:Vm, name: &str, _:&Var)->ErrSignal<()>{
-        Err(error::throw(&format!("Error(def {:?} to undef_ctx):没有作用域了 (from undef_ctx)",name)))
+impl Context for Void{
+    fn for_each(&self,_:fn(&Var)) {}
+
+    fn def(&self,vm:Vm, name: &str, _:&Var)->Signal{
+        Err(error::throw(vm,&format!("Error(def {:?} to undef_ctx):没有作用域了 (from undef_ctx)",name)))
     }
     fn get(&self,_:Vm, name: &str)->Signal {
         Err(
@@ -92,17 +118,13 @@ impl Virtual for Void{
     fn has(&self,_:Vm, _: &str)->bool {
         false
     }
-    fn set(&self,_:Vm, name: &str, _:&Var)->ErrSignal<()>{
-        Err(error::throw(&format!("Error(set {:?} to undef_ctx):没有作用域了 (from undef_ctx)",name)))
+    fn set(&self,vm:Vm, name: &str, _:&Var)->Signal{
+        Err(error::throw(vm,&format!("Error(set {:?} to undef_ctx):没有作用域了 (from undef_ctx)",name)))
     }
 }
 
-pub fn void_ctx() -> Rc<VarBox>{
-    Rc::new(VarBox{
-        mark:std::cell::Cell::new(Mark::New),
-        value:Box::new(Void()),
-        id:0,
-    })
+pub fn void_ctx() -> CtxType{
+    Rc::new(Void())
 }
 
 // //自动创建并回收作用域

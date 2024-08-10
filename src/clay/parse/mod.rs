@@ -3,6 +3,9 @@ use crate::clay::prelude::objects::string;
 use num_bigint::BigInt;
 use std::{cell::Cell, collections::LinkedList, str::FromStr};
 
+// pub mod clay;
+// pub use clay as new_parser;
+
 pub struct Parser<'a> {
     code: &'a str,
     index: Cell<usize>,
@@ -23,19 +26,36 @@ fn closure(result: &mut Vec<Token>, token: &mut Vec<char>) -> Result<(), String>
         };
 
         if yes {
-            return match BigInt::from_str(&t) {
+            /*return match BigInt::from_str(&t) {
                 Ok(n) => {
                     result.push(Token::Int(n));
                     Ok(())
                 }
-                Err(_) => match f64::from_str(&t) {
+                Err(_) => match f64::from_str(&t.replace("_", "")) {
                     Ok(n) => {
                         result.push(Token::Float(n));
                         Ok(())
                     }
                     Err(_) => Err(format!("Invalid number: {}", t)),
                 },
-            };
+            };*/
+            if t.contains(".") {
+                match f64::from_str(&t.replace("_", "")) {
+                    Ok(n) => {
+                        result.push(Token::Float(n));
+                        Ok(())
+                    }
+                    Err(_) => Err(format!("Invalid number: {}", t)),
+                }
+            } else {
+                match BigInt::from_str(&t) {
+                    Ok(n) => {
+                        result.push(Token::Int(n));
+                        Ok(())
+                    }
+                    Err(_) => Err(format!("Invalid number: {}", t)),
+                }
+            }
         } else {
             result.push(Token::Id(t));
             Ok(())
@@ -121,10 +141,19 @@ impl<'a> Parser<'a> {
                 token.push(sym);
                 if let Some(c) = self.peek() {
                     match c {
-                        '-' | '=' | '>' => {
+                        '=' | '>' => {
                             token.push(c);
                             self.next();
                             return Ok(Token::Id(token.iter().collect()));
+                        }
+                        '-' => {
+                            #[cfg(debug_assertions)]
+                            println!("use ignore:");
+
+                            match self.ignore() {
+                                Ok(_) => {}
+                                Err(e) => return Err(e),
+                            }
                         }
                         _ => return Ok(Token::Id(token.iter().collect())),
                     }
@@ -375,11 +404,11 @@ impl<'a> Parser<'a> {
 
                             result.push(self.parse_bracket(')')?)
                         }
-                        ';' => {
+                        ';' | ',' => {
                             closure(&mut result, &mut token)?;
 
                             #[cfg(debug_assertions)]
-                            println!("finish parse_line_unless_{:?} (end with ;)", end);
+                            println!("finish parse_line_unless_{:?} (end with {:?})", end, c);
 
                             return Ok((
                                 if result.len() > 0 {
@@ -389,16 +418,6 @@ impl<'a> Parser<'a> {
                                 },
                                 false,
                             ));
-                        }
-                        ',' => {
-                            closure(&mut result, &mut token)?;
-
-                            #[cfg(debug_assertions)]
-                            println!("收集逗号");
-
-                            token.push(',');
-
-                            closure(&mut result, &mut token)?;
                         }
                         '"' => {
                             closure(&mut result, &mut token)?;
@@ -466,17 +485,17 @@ impl<'a> Parser<'a> {
 
                             result.push(self.parse_block()?);
                         }
-                        '#' => {
-                            closure(&mut result, &mut token)?;
+                        // '#' => {
+                        //     closure(&mut result, &mut token)?;
 
-                            #[cfg(debug_assertions)]
-                            println!("use ignore:");
+                        //     #[cfg(debug_assertions)]
+                        //     println!("use ignore:");
 
-                            match self.ignore() {
-                                Ok(_) => {}
-                                Err(e) => return Err(e),
-                            }
-                        }
+                        //     match self.ignore() {
+                        //         Ok(_) => {}
+                        //         Err(e) => return Err(e),
+                        //     }
+                        // }
                         '}' | ')' | ']' => {
                             return Err(format!("Unexpected closing bracket: {:?}", c));
                         }
@@ -621,6 +640,15 @@ impl<'a> Parser<'a> {
                     }
                 }
                 Some(c) => match c {
+                    '+' | '-' | '*' | '/' | '%' | '^' | '!' | '&' | '|' | '<' | '>' | '=' | ':'
+                    | '@' | '~' => {
+                        closure(&mut result, &mut token)?;
+
+                        #[cfg(debug_assertions)]
+                        println!("use parse_symbol({:?}): ", c);
+
+                        result.push(self.parse_symbol(c)?)
+                    }
                     '(' => {
                         closure(&mut result, &mut token)?;
 
@@ -628,16 +656,6 @@ impl<'a> Parser<'a> {
                         println!("use parse_bracket({:?}): ", c);
 
                         result.push(self.parse_bracket(')')?)
-                    }
-                    ',' => {
-                        closure(&mut result, &mut token)?;
-
-                        #[cfg(debug_assertions)]
-                        println!("收集逗号");
-
-                        token.push(',');
-
-                        closure(&mut result, &mut token)?;
                     }
                     '"' => {
                         closure(&mut result, &mut token)?;
@@ -690,16 +708,15 @@ impl<'a> Parser<'a> {
 
                         result.push(self.parse_block()?)
                     }
-                    '#' => {
+                    ',' | ';' => {
                         closure(&mut result, &mut token)?;
 
                         #[cfg(debug_assertions)]
-                        println!("use ignore: ");
+                        println!("collect {:?}", c);
 
-                        match self.ignore() {
-                            Ok(_) => {}
-                            Err(e) => return Err(e),
-                        }
+                        token.push(c);
+
+                        closure(&mut result, &mut token)?;
                     }
                     '}' | ')' | ']' => {
                         return Err(format!(

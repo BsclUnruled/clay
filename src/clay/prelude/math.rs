@@ -1,10 +1,12 @@
 use num_bigint::BigInt;
-use crate::clay::prelude::objects::func::args::Args;
+use crate::clay::prelude::objects::args::Args;
 use crate::clay::var::ToVar;
 use crate::clay:: vm::signal::{Abort, Signal};
 
 pub fn add(all:Args)->Signal{
-    let (vm,args,_) = all;
+    let vm = all.vm();
+    let args = all.args();
+
     let x = match args.get(0) {
         Some(x)=>x,
         None=>return Err(
@@ -26,5 +28,5 @@ pub fn add(all:Args)->Signal{
 
     let result = x_int + y_int;
 
-    Ok(result.to_var(vm))
+    Ok(result.to_var(*vm))
 }

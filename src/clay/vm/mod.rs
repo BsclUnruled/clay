@@ -1,18 +1,19 @@
-use super::{prelude::objects::{func::{script, Func}, string}, var::{ToVar, Var, VarBox}};
+use crate::clay::prelude::objects::args::Args;
+use super::var::{ToVar, Var};
 use num_bigint::BigInt;
 use runtime::Vm;
 use signal::{Abort, ErrSignal, Signal};
 use std::rc::Rc;
 pub use runtime::Runtime;
-
 pub mod env;
 pub mod error;
 pub mod gc;
 pub mod runtime;
 pub mod signal;
+pub mod keys;
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug,Clone)]
 pub enum Token {
     Id(String),
 
@@ -30,6 +31,45 @@ pub enum Token {
     //Lambda(Vec<String>,Box<Code>),
     The(Var),
 }
+
+// impl Eval for Token {
+//     fn eval(&self, vm: Vm, ctx:&CtxType) -> Signal {
+//         Ok(match self {
+//             Token::Id(ref s) => ctx.get(vm, s)?,
+//             Token::Int(ref i) => i.to_owned().to_var(vm),
+//             Token::Float(ref f) => f.to_var(vm),
+//             Token::Str(ref s) => s.to_owned().to_var(vm),
+//             Token::Template(ref s) => string::template(s, ctx).to_var(vm),
+//             Token::Bracket(ref b) => {
+//                 //b.len()>=1
+//                 debug_assert!(b.len() >= 1);
+
+//                 if b.len() == 1 {//直接求值
+//                     b[0].eval(vm, ctx)?
+//                 }else{
+//                     let func = b[0].eval(vm, &ctx)?;
+//                     func.unbox()?.call(Args::new(vm,&{
+//                         let mut hc = Vec::with_capacity(b.len() - 1);
+//                         for token in b.iter().skip(1) {
+//                             hc.push(token.eval(vm, &ctx)?);
+//                         }
+//                         hc
+//                     }))?
+//                 }
+//             }
+//             Token::Block(ref b) => {
+//                 let new_ctx = env::default(Some(Rc::clone(&ctx)));
+//                 let mut result = vm.undef()?;
+//                 for token in b {
+//                     result = token.eval(vm, &new_ctx)?;
+//                 };
+//                 result
+//             }
+//             Token::Middle(_)=>todo!("下标: 开发中"),
+//             Token::The(ref c) => c.clone(),
+//         })
+//     }
+// }
 
 impl Token {
     pub fn format(&self,vm:Vm) -> ErrSignal<Code> {
@@ -88,7 +128,7 @@ impl Token {
 
                 drop(bracket);
 
-                let stage1_iter = stage1.into_iter().map(|tv|(tv,0usize));
+                let _stage1_iter = stage1.into_iter().map(|tv|(tv,0usize));
 
                 todo!("重头戏: 对运算符进行提升");
 
@@ -110,6 +150,7 @@ pub enum Code {
     Throw(CodeVec),
     Break(CodeVec),
     Continue(CodeVec),
+
     If(CodeVec, CodeVec, CodeVec),
     Try(CodeVec,CodeVec),
 
@@ -119,7 +160,10 @@ pub enum Code {
         y:CodeVec
     },
 
-    Apply(CodeVec),
+    Apply{
+        func:Box<Code>,
+        args:CodeVec,
+    },
     Block(CodeVec),
 
     Func{
@@ -149,125 +193,25 @@ pub enum Operstor {
     Neg,Index(CodeVec)
 }
 
+pub type CtxType = Rc<dyn env::Context>;
+
 pub trait Eval {
-    fn eval(&self, vm: Vm, ctx: Rc<VarBox>) -> Signal;
+    fn eval(&self, all:Args) -> Signal;
 }
 
 impl Eval for String {
-    fn eval(&self, vm: Vm, ctx: Rc<VarBox>) -> Signal {
+    fn eval(&self, all:Args) -> Signal {
         use crate::clay::parse::Parser;
         let parser = Parser::new(self);
         match parser.parse() {
-            Ok(code) => code.format(vm)?.eval(vm, ctx),
+            Ok(code) => code.format(*all.vm())?.eval(all.clone()),
             Err(e) => Err(Abort::ThrowString(e)),
         }
     }
 }
 
-impl Eval for [Code] {
-    fn eval(&self, vm: Vm, ctx: Rc<VarBox>) -> Signal {
-        match self.get(0) {
-            None => vm.undef(),
-            Some(func_sym) => match func_sym.eval(vm, Rc::clone(&ctx)) {
-                Ok(var) => {
-                    let hc = {
-                        let mut args: Vec<Var> = Vec::with_capacity(self.len() - 1);
-                        for code in self.iter().skip(1) {
-                            args.push(code.eval(vm, Rc::clone(&ctx))?);
-                        }
-                        args
-                    };
-                    var.unbox()?.as_func((vm, &hc, Rc::clone(&ctx)))
-                }
-                Err(e) => Err(e),
-            },
-        }
-    }
-}
-
 impl Eval for Code {
-    fn eval(&self, vm: Vm, ctx: Rc<VarBox>) -> Signal {
-        match self {
-            Self::Id(ref s) => ctx.get(vm,s)?,
-            Self::The(ref c) => c.clone(),
-            Self::Template(ref s) => string::template(s, ctx).to_var(vm),
-            Self::Block(ref b) => {
-                let new_ctx = env::default(vm,Some(Rc::clone(&ctx)));
-
-                let mut result = vm.undef()?;
-
-                for line in b {
-                    result = line.eval(vm, Rc::clone(&new_ctx))?;
-                }
-                result
-            }
-            Self::Func { name, args_names, body }=>{
-                let script = script::Script::new(
-                    &name,
-                    args_names,
-                    &ctx,
-                    &body
-                );
-                Func::Script(script).to_var(vm)
-            }
-            Self::Apply(ref args) => {
-                Self::apply_expr(vm, args, &ctx)?
-            }
-            Code::Break(ref expr)=> return  Err(
-                Abort::Break(
-                    Code::apply_expr(vm,expr,&ctx)?
-                )
-            ),
-            Code::Continue(_)=> return  Err(
-                Abort::Continue
-            ),
-            Code::Return(ref expr)=> return  Err(
-                Abort::Return(
-                    Code::apply_expr(vm,expr,&ctx)?
-                )
-            ),
-            Code::Throw(ref expr)=> return  Err(
-                Abort::Throw(Code::apply_expr(vm, expr, &ctx)?)
-            ),
-            Code::If(ref cond, ref then, ref else_then) => {
-                let cond_rc = Code::apply_expr(vm, cond, &ctx)?.unbox()?;
-                let cond_bool = *cond_rc.cast()?;
-                if cond_bool {
-                    Code::apply_expr(vm, then, &ctx)?
-                }else{
-                    Code::apply_expr(vm, else_then, &ctx)?
-                }
-            }
-            Code::Try(ref try_block, ref catch_block) => {
-                let hc = Code::apply_expr(vm, try_block, &ctx);
-                if let Err(Abort::Throw(e)) = hc {
-                    Code::apply_expr(vm, &catch_block, &ctx)?
-                        .unbox()?
-                        .as_func((vm, &[e], Rc::clone(&ctx)))
-                } else{
-                    hc
-                }?
-            }
-            Code::Op{op,x,y}=>match op{
-                _=>todo!("运算符")
-            }
-        }
-        .into()
-    }
-}
-
-impl Code{
-    pub fn apply_expr(vm: Vm, expr: &[Code], ctx:&Rc<VarBox>) -> Signal {
-        //至少有两个元素
-        let var = expr[0].eval(vm, Rc::clone(&ctx))?;
-
-        let hc = {
-            let mut tobe: Vec<Var> = Vec::with_capacity(expr.len() - 1);
-            for code in expr.iter().skip(1) {
-                tobe.push(code.eval(vm, Rc::clone(&ctx))?);
-            }
-            tobe
-        };
-        var.unbox()?.as_func((vm, &hc, Rc::clone(&ctx)))
+    fn eval(&self, _all:Args) -> Signal {
+        todo!()
     }
 }

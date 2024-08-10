@@ -1,14 +1,22 @@
-use std::{error::Error, fmt::{Debug, Display}, ops::Add};
+use std::{error::Error, fmt::{Debug, Display}};
 
-use super::Abort;
+use crate::clay::var::{ToVar, Virtual};
 
-pub fn throw(message: &str) -> Abort {
-    Abort::ThrowError(VmError::new(message, None).into())
+use super::{runtime::Vm, Abort};
+
+pub fn throw(vm:Vm, message: &str) -> Abort {
+    Abort::Throw(VmError::new(message, None).to_var(vm))
 }
 
 pub struct VmError {
     message: String,
     source: Option<Box<dyn Error>>,
+}
+
+impl Virtual for VmError {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl Display for VmError {
@@ -42,16 +50,16 @@ impl VmError {
     }
 }
 
-impl Add<Box<dyn Error>> for VmError {
-    type Output = Box<dyn Error>;
+// impl Add<Box<dyn Error>> for VmError {
+//     type Output = Box<dyn Error>;
 
-    fn add(self, rhs: Box<dyn Error>) -> Self::Output {
-        Box::new(VmError {
-            message: self.message,
-            source: Some(rhs),
-        })
-    }
-}
+//     fn add(self, rhs: Box<dyn Error>) -> Self::Output {
+//         Box::new(VmError {
+//             message: self.message,
+//             source: Some(rhs),
+//         })
+//     }
+// }
 
 impl From<&str> for VmError {
     fn from(message: &str) -> Self {
@@ -59,56 +67,51 @@ impl From<&str> for VmError {
     }
 }
 
-impl From<VmError> for Abort {
-    fn from(e: VmError) -> Self {
-        Abort::ThrowError(Box::new(e))
-    }
-}
+// impl From<VmError> for Abort {
+//     fn from(e: VmError) -> Self {
+//         Abort::Throw(Box::new(e))
+//     }
+// }
 
-pub fn set_unsetable(type_name: &str, property_name: &str)->Abort{
-    throw(&format!(
+pub fn set_unsetable(vm:Vm,type_name: &str, property_name: &str)->Abort{
+    throw(vm,&format!(
         "set unsetable\n\t\t尝试设置{}的属性{}",
         property_name, type_name
     ))
 }
 
-pub fn get_ungetable(type_name: &str, property_name: &str)->Abort{
-    throw(&format!(
+pub fn get_ungetable(vm:Vm,type_name: &str, property_name: &str)->Abort{
+    throw(vm,&format!(
         "get ungetable\n\t\t尝试获取{}的属性{}",
         property_name, type_name
     ))
 }
 
-pub fn set_undef(property_name: &str)->Abort{
-    set_unsetable("undef", property_name)
+pub fn set_undef(vm:Vm,property_name: &str)->Abort{
+    set_unsetable(vm,"undef", property_name)
 }
 
-pub fn use_dropped()->Abort{
-    throw(&format!("use dropped\n\t\t变量已回收"))
+pub fn use_dropped(vm:Vm)->Abort{
+    throw(vm,&format!("use dropped\n\t\t变量已回收"))
 }
 
-pub fn async_scheduler_error()->Abort{
-    Abort::ThrowError(
-        Box::new(VmError::new(
-            "schedule failed\n\t\tclay异步函数调度失败",
-            None,
-        ))
-    )
+pub fn async_scheduler_error(vm:Vm)->Abort{
+    throw(vm,"schedule failed\n\t\tclay异步函数调度失败")
 }
 
-pub fn not_a_func()->Abort{
-    throw(&format!("not a function\n\t\t不是函数"))
+pub fn not_a_func(vm:Vm)->Abort{
+    throw(vm,&format!("not a function\n\t\t不是函数"))
 }
 
-pub fn def_undefable(type_name: &str, property_name: &str)->Abort{
-    throw(&format!(
+pub fn def_undefable(vm:Vm,type_name: &str, property_name: &str)->Abort{
+    throw(vm,&format!(
         "def undefable\n\t\t尝试在{}上定义『{}』属性",
         property_name, type_name
     ))
 }
 
 pub fn cast_error(expcet: &str, actual:&str)->Abort{
-    throw(&format!(
+    Abort::ThrowString(format!(
 r"cast error
                 类型转换失败
                 期望类型: {}, 实际类型: {}", expcet, actual))

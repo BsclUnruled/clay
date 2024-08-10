@@ -1,25 +1,9 @@
-pipe{   #这，就是clay
-    count 0 114
-    collect it Array
-    
-    map it \x{
-        if(== (% x 3) 0){
-            + x (randint 1 4)
-        }else{
-            x
-        }
-    }
-
-    for it log
+if(true){
+    log 'sb'
+}else{
+    log 'not sb'
 }
 
-try{
-    throw "error"
-}catch(err){
-    case TypeError{
-        log (str err)
-    }
-    case _{
-        log "unknown error"
-    }
-}
+let const_arr = $[1,2,3,4,5]
+log const_arr[2]
+for const_arr@(v)=log v

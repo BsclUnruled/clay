@@ -1,6 +1,6 @@
 use std::fmt::Display;
 use crate::clay::var::{ToVar, Virtual};
-use super::func::Args;
+use super::args::Args;
 use crate::clay::{var::Var, vm::{error, runtime::Vm, signal::Signal}};
 
 #[derive(Debug)]
@@ -13,10 +13,13 @@ impl Display for Undef {
 }
 
 impl Virtual for Undef {
-    fn as_func(&self,_:Args)->Signal
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn call(&self,all:Args)->Signal
     where Self:Sized + 'static{
         Err(
-            error::not_a_func()
+            error::not_a_func(*all.vm())
         )
     }
 }
