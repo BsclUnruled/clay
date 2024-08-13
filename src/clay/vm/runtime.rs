@@ -1,10 +1,10 @@
-use tokio::{sync::mpsc::{channel, Receiver, Sender}, task::{yield_now, JoinHandle}};
+// use tokio::{sync::mpsc::{channel, Receiver, Sender}, task::{yield_now, JoinHandle}};
 
 use crate::clay::{
-    prelude::{objects::{ args::Args, method, undef}, to_str}, var::{Var, VarBox, Virtual}, Cell
+    prelude::{objects::{ method, undef}, to_str}, var::{Var, VarBox,}, Cell
 };
 use std::{
-    collections::LinkedList, ops::{Deref, DerefMut}, process::exit, rc::{Rc, Weak}
+    collections::LinkedList, ops::Deref, process::exit, rc::{Rc, Weak}
 };
 use super::{
     env::{self, Context}, signal::{Abort, ErrSignal, Signal}, CtxType
@@ -22,10 +22,10 @@ pub struct Runtime {
     undef: Option<Var>,
     r#str:Option<Var>,
 
-    ctrl:Control,
-    lock:Lock,
+    // ctrl:Control,
+    // lock:Lock,
 
-    async_runtime:tokio::runtime::Runtime
+    // async_runtime:tokio::runtime::Runtime
 }
 
 unsafe impl Send for Runtime {}
@@ -49,53 +49,53 @@ impl Exit<&str> for Vm{
     }
 }
 
-pub struct InnerLock{
-    start_receiver:Receiver<()>,
-    finish_sender:Sender<()>
-}
+// pub struct InnerLock{
+//     start_receiver:Receiver<()>,
+//     finish_sender:Sender<()>
+// }
 
-#[derive(Clone)]
-pub struct Lock{
-    inner:Rc<Cell<InnerLock>>
-}
+// #[derive(Clone)]
+// pub struct Lock{
+//     inner:Rc<Cell<InnerLock>>
+// }
 
-impl Deref for Lock {
-    type Target = InnerLock;
-    fn deref(&self) -> &Self::Target {
-        self.inner.borrow()
-    }
-}
+// impl Deref for Lock {
+//     type Target = InnerLock;
+//     fn deref(&self) -> &Self::Target {
+//         self.inner.borrow()
+//     }
+// }
 
-impl DerefMut for Lock {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.inner.borrow_mut()
-    }
-}
+// impl DerefMut for Lock {
+//     fn deref_mut(&mut self) -> &mut Self::Target {
+//         self.inner.borrow_mut()
+//     }
+// }
 
-impl Virtual for Lock {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
+// impl Virtual for Lock {
+//     fn as_any(&self) -> &dyn std::any::Any {
+//         self
+//     }
+// }
 
-pub struct Control{
-    start_sender:Sender<()>,
-    finish_receiver:Receiver<()>
-}
+// pub struct Control{
+//     start_sender:Sender<()>,
+//     finish_receiver:Receiver<()>
+// }
 
-pub fn make_lock()->(Control,Lock){
-    let (start_sender,start_receiver) = channel(1);
-    let (finish_sender,finish_receiver) = channel(1);
-    (
-        Control{start_sender,finish_receiver},
-        Lock{
-            inner:Rc::new(Cell::new(InnerLock{
-                start_receiver,
-                finish_sender
-            }))
-        }
-    )
-}
+// pub fn make_lock()->(Control,Lock){
+//     let (start_sender,start_receiver) = channel(1);
+//     let (finish_sender,finish_receiver) = channel(1);
+//     (
+//         Control{start_sender,finish_receiver},
+//         Lock{
+//             inner:Rc::new(Cell::new(InnerLock{
+//                 start_receiver,
+//                 finish_sender
+//             }))
+//         }
+//     )
+// }
 
 #[derive(Clone, Copy)]
 pub struct Vm(&'static Cell<Runtime>);
@@ -108,51 +108,51 @@ impl Deref for Vm {
 }
 
 impl Vm {
-    pub fn async_runtime(&self)->&tokio::runtime::Runtime{
-        &self.borrow().async_runtime
-    }
+    // pub fn async_runtime(&self)->&tokio::runtime::Runtime{
+    //     &self.borrow().async_runtime
+    // }
 
-    pub fn run_code(&self,code:Var)->Signal{
-        let vm = *self;
-        self.async_runtime().spawn(async move{
-            loop{
-                let _ = vm.borrow_mut().ctrl.start_sender.blocking_send(());
-                yield_now().await;
-                match vm.borrow_mut().ctrl.finish_receiver.blocking_recv(){
-                    Some(_) => (),
-                    None =>{
-                        #[cfg(debug_assertions)]{
-                            eprintln!("未接收到数据(from Vm::run_code->eventloop)");
-                        }
-                    }
-                };
-            }
-        });
-        self.async_runtime().block_on(async{
-            vm.borrow_mut().lock.start_receiver.recv().await.unwrap();
-            let result = 
-                code.unbox()?.call(Args::new(
-                    vm,
-                    &[]
-                ));
-            let _ = vm.borrow_mut().lock.finish_sender.send(()).await;
-            result
-        })
-    }
+    // pub fn run_code(&self,code:Var)->Signal{
+    //     let vm = *self;
+    //     self.async_runtime().spawn(async move{
+    //         loop{
+    //             let _ = vm.borrow_mut().ctrl.start_sender.blocking_send(());
+    //             yield_now().await;
+    //             match vm.borrow_mut().ctrl.finish_receiver.blocking_recv(){
+    //                 Some(_) => (),
+    //                 None =>{
+    //                     #[cfg(debug_assertions)]{
+    //                         eprintln!("未接收到数据(from Vm::run_code->eventloop)");
+    //                     }
+    //                 }
+    //             };
+    //         }
+    //     });
+    //     self.async_runtime().block_on(async{
+    //         vm.borrow_mut().lock.start_receiver.recv().await.unwrap();
+    //         let result = 
+    //             code.unbox()?.call(Args::new(
+    //                 vm,
+    //                 &[]
+    //             ));
+    //         let _ = vm.borrow_mut().lock.finish_sender.send(()).await;
+    //         result
+    //     })
+    // }
 
-    pub fn spawn(&self,code:Var)->JoinHandle<Signal>{
-        let vm = *self;
-        self.async_runtime().spawn(async move{
-            vm.borrow_mut().lock.start_receiver.recv().await.unwrap();
-            let result = 
-                code.unbox()?.call(Args::new(
-                    vm,
-                    &[]
-                ));
-            let _ = vm.borrow_mut().lock.finish_sender.send(()).await;
-            result
-        })
-    }
+    // pub fn spawn(&self,code:Var)->JoinHandle<Signal>{
+    //     let vm = *self;
+    //     self.async_runtime().spawn(async move{
+    //         vm.borrow_mut().lock.start_receiver.recv().await.unwrap();
+    //         let result = 
+    //             code.unbox()?.call(Args::new(
+    //                 vm,
+    //                 &[]
+    //             ));
+    //         let _ = vm.borrow_mut().lock.finish_sender.send(()).await;
+    //         result
+    //     })
+    // }
 
     pub fn get_context(&self) ->&Rc<dyn Context> {
         &self.borrow().global_context
@@ -195,7 +195,7 @@ impl Vm {
             None
         );
 
-        let (ctrl,lock) = make_lock();
+        // let (ctrl,lock) = make_lock();
 
         let hc = Runtime {
             id_counter: 1,
@@ -208,15 +208,17 @@ impl Vm {
             undef: None,
             r#str: None,
 
-            ctrl,
-            lock,
-
-            async_runtime:tokio::runtime::Runtime::new().unwrap()
+            // ctrl,
+            // lock,
         };
 
         let hc = Vm(Box::leak(Box::new(Cell::new(hc))));
 
         Ok(Self::init(hc))
+    }
+
+    pub fn run_code(&self,_func:Var)->Signal{
+        Err(Abort::ThrowString("not implemented yet(Vm::run_code)".to_owned()))
     }
 
     fn init(vm: Vm) -> Vm {

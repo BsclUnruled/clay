@@ -53,6 +53,17 @@ impl<T> Cell<Option<T>>{
             self.borrow().as_ref().expect("Error: 无法在初始化后获取值(from clay::Cell::get_or_init)")
         }
     }
+
+    pub fn get_mut_or_init<F: FnOnce() -> T>(&self, f: F) -> &mut T {
+        let hc = self.borrow_mut();
+        if let Some(value) = hc.as_mut() {
+            value
+        }else{
+            let value = f();
+            *self.borrow_mut() = Some(value);
+            self.borrow_mut().as_mut().expect("Error: 无法在初始化后获取值(from clay::Cell::get_mut_or_init)")
+        }
+    }
 }
 
 unsafe impl<T: Send> Send for Cell<T> {}

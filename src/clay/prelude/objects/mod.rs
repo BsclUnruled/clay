@@ -8,5 +8,6 @@ pub mod module;
 pub mod method;
 pub mod func;
 pub mod args;
+pub mod future;
 
 pub use native::Function;
