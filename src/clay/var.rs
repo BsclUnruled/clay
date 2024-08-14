@@ -3,12 +3,12 @@ use std::cell::Cell as StdCell;
 use std::fmt::{self, Debug};
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
-use num_bigint::BigInt;
 use super::prelude::objects::args::Args;
 use super::vm::error;
 use super::vm::gc::Mark;
 use super::vm::runtime::Vm;
 use super::vm::signal::{Abort, ErrSignal, Signal};
+pub use std::ops::ControlFlow::{Continue as Go,Break as Stop};
 
 pub trait Virtual:Any + 'static {
     fn ptr(&self)->String{format!("{:p}",self)}
@@ -50,11 +50,16 @@ pub trait Virtual:Any + 'static {
 
 pub trait ToVar{
     fn to_var(self:Self,vm:Vm) -> Var;
+    fn to_varbox(self:Self,vm:Vm) -> VarBox;
 }
 
 impl<T:Virtual> ToVar for T{
     fn to_var(self:Self,vm:Vm) -> Var where Self: Sized + 'static{
         Var::new(Box::new(self),vm)
+    }
+
+    fn to_varbox(self:Self,vm:Vm) -> VarBox {
+        VarBox::new(Box::new(self),vm)
     }
 }
 
@@ -233,12 +238,15 @@ impl<T:Virtual> ToVar for T{
 //     }
 // }
 
-impl Virtual for BigInt{
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-impl Virtual for f64{
+// impl Virtual for BigInt{
+//     fn as_any(&self) -> &dyn Any {
+//         self
+//     }
+// }
+
+pub type Number = f64;
+
+impl Virtual for Number{
     fn as_any(&self) -> &dyn Any {
         self
     }

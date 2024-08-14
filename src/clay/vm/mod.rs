@@ -1,6 +1,5 @@
 use crate::clay::prelude::objects::args::Args;
 use super::var::{ToVar, Var};
-use num_bigint::BigInt;
 use runtime::Vm;
 use signal::{Abort, ErrSignal, Signal};
 use std::rc::Rc;
@@ -17,8 +16,10 @@ pub mod keys;
 pub enum Token {
     Id(String),
 
-    Int(BigInt),
-    Float(f64),
+    // Int(BigInt),
+    // Float(f64),
+
+    Number(f64),
 
     Str(String),
     Template(String),
@@ -76,8 +77,10 @@ impl Token {
         match self {
             Token::Id(ref s) => Ok(Code::Id(s.clone())),
 
-            Token::Int(ref i) => Ok(Code::The(i.to_owned().to_var(vm))),
-            Token::Float(ref f) => Ok(Code::The(f.to_var(vm))),
+            Token::Number(ref f) => Ok(Code::The(f.to_var(vm))),
+
+            // Token::Int(ref i) => Ok(Code::The(i.to_owned().to_var(vm))),
+            // Token::Float(ref f) => Ok(Code::The(f.to_var(vm))),
 
             Token::Str(ref s) => Ok(Code::The(s.to_owned().to_var(vm))),
             Token::Template(ref s) => Ok(Code::Template(s.clone())),

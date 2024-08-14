@@ -1,6 +1,5 @@
-use num_bigint::BigInt;
 use crate::clay::prelude::objects::args::Args;
-use crate::clay::var::ToVar;
+use crate::clay::var::{Number, ToVar};
 use crate::clay:: vm::signal::{Abort, Signal};
 
 pub fn add(all:Args)->Signal{
@@ -22,9 +21,9 @@ pub fn add(all:Args)->Signal{
     };
 
     let binding = x.unbox()?;
-    let x_int:&BigInt = binding.cast()?;
+    let x_int:&Number = binding.cast()?;
     let binding = y.unbox()?;
-    let y_int:&BigInt = binding.cast()?;
+    let y_int:&Number = binding.cast()?;
 
     let result = x_int + y_int;
 

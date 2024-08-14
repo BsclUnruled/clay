@@ -5,10 +5,12 @@ edition = "2021"
 
 [dependencies]
 # generator = "0.8"
-num-bigint = "0.4"
-num-traits = "0.2"
+# num-bigint = "0.4"
+# num-traits = "0.2"
 
 stackful = "0.1.5"
+
+only = { path = "/home/unruled/desktop/only" }
 
 #coroutine = "0.8"
 # corosensei = "0.1.4"

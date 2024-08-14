@@ -1,11 +1,8 @@
 use std::{fs, /*io::Write*/};
 
 use clay::{
-    parse::{self, /*clay::Rule*/},
-    prelude::repl,
-    vm::signal::{Abort, ErrSignal},
+    parse::{self, /*clay::Rule*/}, prelude::repl, var::Number, vm::signal::{Abort, ErrSignal}
 };
-use num_bigint::BigInt;
 // use pest::Parser;
 
 pub mod clay;
@@ -71,7 +68,7 @@ fn clay_main() -> ErrSignal<()> {
             println!("\n开始执行\n")
         }
 
-        println!("{:#?}", vm.undef()?.unbox()?.cast::<BigInt>()?);
+        println!("{:#?}", vm.undef()?.unbox()?.cast::<Number>()?);
 
         println!(
             "\n",

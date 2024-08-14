@@ -1,6 +1,5 @@
-use super::vm::Token;
+use super::{var::Number, vm::Token};
 use crate::clay::prelude::objects::string;
-use num_bigint::BigInt;
 use std::{cell::Cell, collections::LinkedList, str::FromStr};
 
 // pub mod clay;
@@ -39,22 +38,30 @@ fn closure(result: &mut Vec<Token>, token: &mut Vec<char>) -> Result<(), String>
                     Err(_) => Err(format!("Invalid number: {}", t)),
                 },
             };*/
-            if t.contains(".") {
-                match f64::from_str(&t.replace("_", "")) {
-                    Ok(n) => {
-                        result.push(Token::Float(n));
-                        Ok(())
-                    }
-                    Err(_) => Err(format!("Invalid number: {}", t)),
+            // if t.contains(".") {
+            //     match f64::from_str(&t.replace("_", "")) {
+            //         Ok(n) => {
+            //             result.push(Token::Float(n));
+            //             Ok(())
+            //         }
+            //         Err(_) => Err(format!("Invalid number: {}", t)),
+            //     }
+            // } else {
+            //     match BigInt::from_str(&t) {
+            //         Ok(n) => {
+            //             result.push(Token::Int(n));
+            //             Ok(())
+            //         }
+            //         Err(_) => Err(format!("Invalid number: {}", t)),
+            //     }
+            // }
+
+            match Number::from_str(&t.replace("_", "")) {
+                Ok(n) => {
+                    result.push(Token::Number(n));
+                    Ok(())
                 }
-            } else {
-                match BigInt::from_str(&t) {
-                    Ok(n) => {
-                        result.push(Token::Int(n));
-                        Ok(())
-                    }
-                    Err(_) => Err(format!("Invalid number: {}", t)),
-                }
+                Err(_) => Err(format!("Invalid number: {}", t)),
             }
         } else {
             result.push(Token::Id(t));
@@ -111,15 +118,13 @@ impl<'a> Parser<'a> {
         #[cfg(debug_assertions)]
         println!("parse_symbol");
 
-        let mut token = Vec::with_capacity(1);
+        let mut token = vec![sym];
 
         match sym {
             ':' | '@' | '~' => {
-                token.push(sym);
                 return Ok(Token::Id(token.iter().collect()));
             }
             '+' => {
-                token.push(sym);
                 match self.peek() {
                     Some(c) => match c {
                         '+' | '=' => {
@@ -138,7 +143,6 @@ impl<'a> Parser<'a> {
                 }
             }
             '-' => {
-                token.push(sym);
                 if let Some(c) = self.peek() {
                     match c {
                         '=' | '>' => {
@@ -161,7 +165,6 @@ impl<'a> Parser<'a> {
                 return Ok(Token::Id(token.iter().collect()));
             }
             '*' => {
-                token.push(sym);
                 match self.peek() {
                     Some(c) => match c {
                         '*' | '=' => {
@@ -180,7 +183,6 @@ impl<'a> Parser<'a> {
                 }
             }
             '/' => {
-                token.push(sym);
                 match self.peek() {
                     Some(c) => match c {
                         '/' | '=' => {
@@ -199,7 +201,6 @@ impl<'a> Parser<'a> {
                 }
             }
             '%' => {
-                token.push(sym);
                 match self.peek() {
                     Some(c) => match c {
                         '=' => {
@@ -218,7 +219,6 @@ impl<'a> Parser<'a> {
                 }
             }
             '^' => {
-                token.push(sym);
                 match self.peek() {
                     Some(c) => match c {
                         '=' => {
@@ -237,7 +237,6 @@ impl<'a> Parser<'a> {
                 }
             }
             '!' => {
-                token.push(sym);
                 match self.peek() {
                     Some(c) => match c {
                         '=' => {
@@ -256,7 +255,6 @@ impl<'a> Parser<'a> {
                 }
             }
             '&' => {
-                token.push(sym);
                 match self.peek() {
                     Some(c) => match c {
                         '&' => {
@@ -275,7 +273,6 @@ impl<'a> Parser<'a> {
                 }
             }
             '|' => {
-                token.push(sym);
                 match self.peek() {
                     Some(c) => match c {
                         '|' => {
@@ -294,7 +291,6 @@ impl<'a> Parser<'a> {
                 }
             }
             '>' => {
-                token.push(sym);
                 match self.peek() {
                     Some(c) => match c {
                         '=' => {
@@ -313,7 +309,6 @@ impl<'a> Parser<'a> {
                 }
             }
             '<' => {
-                token.push(sym);
                 match self.peek() {
                     Some(c) => match c {
                         '=' | '-' => {
@@ -332,7 +327,6 @@ impl<'a> Parser<'a> {
                 }
             }
             '=' => {
-                token.push(sym);
                 match self.peek() {
                     Some(c) => match c {
                         '=' => {
@@ -388,7 +382,7 @@ impl<'a> Parser<'a> {
                 match next {
                     Some(c) => match c {
                         '+' | '-' | '*' | '/' | '%' | '^' | '!' | '&' | '|' | '<' | '>' | '='
-                        | ':' | '@' | '~' => {
+                        | ':' | '@' | '~' | '\\' => {
                             closure(&mut result, &mut token)?;
 
                             #[cfg(debug_assertions)]
@@ -404,20 +398,15 @@ impl<'a> Parser<'a> {
 
                             result.push(self.parse_bracket(')')?)
                         }
-                        ';' | ',' => {
+                        ',' | ';' => {
                             closure(&mut result, &mut token)?;
 
                             #[cfg(debug_assertions)]
-                            println!("finish parse_line_unless_{:?} (end with {:?})", end, c);
+                            println!("collect {:?}", c);
 
-                            return Ok((
-                                if result.len() > 0 {
-                                    Some(Token::Bracket(result))
-                                } else {
-                                    None
-                                },
-                                false,
-                            ));
+                            token.push(c);
+
+                            closure(&mut result, &mut token)?;
                         }
                         '"' => {
                             closure(&mut result, &mut token)?;
@@ -461,14 +450,14 @@ impl<'a> Parser<'a> {
                                 false,
                             ));
                         }
-                        '\\' => {
-                            closure(&mut result, &mut token)?;
+                        // '\\' => {
+                        //     closure(&mut result, &mut token)?;
 
-                            #[cfg(debug_assertions)]
-                            println!("use parse_lambda:");
+                        //     #[cfg(debug_assertions)]
+                        //     println!("use parse_lambda:");
 
-                            result.push(self.parse_lambda()?)
-                        }
+                        //     result.push(self.parse_lambda()?)
+                        // }
                         '[' => {
                             closure(&mut result, &mut token)?;
 
@@ -535,57 +524,57 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_lambda(&self) -> Return {
-        #[cfg(debug_assertions)]
-        println!("parse_lambda");
+    // fn parse_lambda(&self) -> Return {
+    //     #[cfg(debug_assertions)]
+    //     println!("parse_lambda");
 
-        Ok(Token::Bracket(vec![
-            Token::Id("\\".to_owned()),
-            {
-                loop {
-                    match self.next() {
-                        Some('(') => break,
-                        Some(c) => match c {
-                            '\n' | '\t' | ' ' | '\r' => continue,
-                            _ => {
-                                return Err(format!(
-                                    "Unexpected character {:?}(from parse_lambda->parse_bracket)",
-                                    c
-                                ))
-                            }
-                        },
-                        None => {
-                            return Err("Unexpected end of code(from parse_lambda->parse_bracket)"
-                                .to_owned())
-                        }
-                    }
-                }
-                self.parse_bracket(')')
-            }?,
-            {
-                loop {
-                    match self.next() {
-                        Some('{') => break,
-                        Some(c) => match c {
-                            '\n' | '\t' | ' ' | '\r' => continue,
-                            _ => {
-                                return Err(format!(
-                                    "Unexpected character {:?}(from parse_lambda->parse_block)",
-                                    c
-                                ))
-                            }
-                        },
-                        None => {
-                            return Err(
-                                "Unexpected end of code(from parse_lambda->parse_block)".to_owned()
-                            )
-                        }
-                    }
-                }
-                self.parse_block()
-            }?,
-        ]))
-    }
+    //     Ok(Token::Bracket(vec![
+    //         Token::Id("\\".to_owned()),
+    //         {
+    //             loop {
+    //                 match self.next() {
+    //                     Some('(') => break,
+    //                     Some(c) => match c {
+    //                         '\n' | '\t' | ' ' | '\r' => continue,
+    //                         _ => {
+    //                             return Err(format!(
+    //                                 "Unexpected character {:?}(from parse_lambda->parse_bracket)",
+    //                                 c
+    //                             ))
+    //                         }
+    //                     },
+    //                     None => {
+    //                         return Err("Unexpected end of code(from parse_lambda->parse_bracket)"
+    //                             .to_owned())
+    //                     }
+    //                 }
+    //             }
+    //             self.parse_bracket(')')
+    //         }?,
+    //         {
+    //             loop {
+    //                 match self.next() {
+    //                     Some('{') => break,
+    //                     Some(c) => match c {
+    //                         '\n' | '\t' | ' ' | '\r' => continue,
+    //                         _ => {
+    //                             return Err(format!(
+    //                                 "Unexpected character {:?}(from parse_lambda->parse_block)",
+    //                                 c
+    //                             ))
+    //                         }
+    //                     },
+    //                     None => {
+    //                         return Err(
+    //                             "Unexpected end of code(from parse_lambda->parse_block)".to_owned()
+    //                         )
+    //                     }
+    //                 }
+    //             }
+    //             self.parse_block()
+    //         }?,
+    //     ]))
+    // }
 
     fn parse_block(&self) -> Return {
         #[cfg(debug_assertions)]
@@ -684,14 +673,14 @@ impl<'a> Parser<'a> {
                     '\t' | '\r' | ' ' | '\n' => {
                         closure(&mut result, &mut token)?;
                     }
-                    '\\' => {
-                        closure(&mut result, &mut token)?;
+                    // '\\' => {
+                    //     closure(&mut result, &mut token)?;
 
-                        #[cfg(debug_assertions)]
-                        println!("use parse_lambda: ");
+                    //     #[cfg(debug_assertions)]
+                    //     println!("use parse_lambda: ");
 
-                        result.push(self.parse_lambda()?)
-                    }
+                    //     result.push(self.parse_lambda()?)
+                    // }
                     '[' => {
                         closure(&mut result, &mut token)?;
 
