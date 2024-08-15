@@ -1,16 +1,20 @@
 use crate::clay::{
     var::{ToVar, Var},
-    vm::{runtime::Vm, signal::{Abort, ErrSignal}, Code, Token},
+    vm::{
+        runtime::Vm,
+        signal::{Abort, ErrSignal},
+        Code, Token,
+    },
 };
 
 pub fn t2c(text: &Vec<Token>, vm: &Vm) -> ErrSignal<Vec<Code>> {
     let vm = *vm;
     let mut result = vec![];
 
-    let text = t2ml(vm,text)?;
-    
+    let text = t2ml(vm, text)?;
+
     for token in text {
-        result.push(tran(vm,&token)?);
+        result.push(tran(vm, &token)?);
     }
     Ok(result)
 }
@@ -38,82 +42,45 @@ fn tran(vm: Vm, token: &ML) -> ErrSignal<Code> {
             hc
         }),
 
-        Middle(b) =>{
-            let mut hc = Vec::with_capacity((b.len() - 1) / 2);
-            let mut is_dh = false;
-            for token in b {
-                if is_dh{
-                    match token{
-                        Id(str)=>{
-                            if str == ","{
-                                is_dh = false;
-                                continue;
-                            }else {
-                                return Err(Abort::ThrowString(
-                                    format!("expect ,")
-                                ))
-                            }
-                        }
-                        _ => {
-                            is_dh = false;
-                            hc.push(tran(vm, token)?);
+        Middle(b) => {
+            let mut hc = Vec::with_capacity(b.len());
+            let mut result = vec![];
+
+            for token in b.into_iter() {
+                match token {
+                    Comma => {
+                        if hc.len() == 0 {
+                            continue;
+                        } else {
+                            result.push(tran(vm, &Line(hc))?);
+                            hc = vec![];
                         }
                     }
-                }
-            }
-            Code::Array(hc)
-        },
-
-        Bracket(ref expr) => {
-            important(expr)
-        }
-
-        Line(ref expr) => {
-            //todo!("重头戏")
-
-            let mut bracket = vec![];
-            let mut stage1 = vec![];
-
-            for token in expr.iter() {
-                if let Id(ref s) = token {
-                    match s.as_str() {
-                        "+" | "-" | "*" | "/" | "++" | "--" | "%" | "==" | "!=" | ">=" | "<="
-                        | ">" | "<" | "&&" | "||" | "!" | "neg" | "@" | ":" | "~" => {
-                            stage1.push(bracket);
-                            stage1.push(vec![token]);
-
-                            bracket = vec![];
-                        }
-                        _ => bracket.push(token),
-                    }
-                } else {
-                    bracket.push(token)
+                    _ => hc.push(token.clone()),
                 }
             }
 
-            drop(bracket);
-
-            let _stage1_iter = stage1.into_iter().map(|tv| (tv, 0usize));
-
-            todo!("重头戏: 对运算符进行提升");
-
-            //()
+            Code::Array(result)
         }
+
+        Bracket(ref expr) => important(expr)?,
+
+        Line(ref expr) => important(expr)?,
 
         The(ref c) => Code::The(c.clone()),
 
-        _=>todo!("未实现的t2c")
+        _ => todo!("未实现的t2c"),
     };
 
     Ok(hc)
 }
 
-enum ML{
+#[derive(Debug, Clone)]
+enum ML {
     Id(String),
 
     // Int(BigInt),
     // Float(f64),
-
     Number(f64),
 
     Str(String),
@@ -129,21 +96,54 @@ enum ML{
     //Lambda(Vec<String>,Box<Code>),
     The(Var),
 
-    If,Then,Else,
+    Keys(MLKW),
+
+    //"+" | "-" | "*" | "/" | "%" | "==" | "!=" | ">=" | "<="
+    //| ">" | "<" | "&&" | "||" | "!" | "neg"
+    Op(MLOp),
+}
+
+#[derive(Debug, Clone)]
+enum MLOp {
+    In,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+
+    Eq,
+    Ne,
+    Ge,
+    Le,
+    Gt,
+    Lt,
+
+    And,
+    Or,
+    Not,
+
+    None,
+}
+
+#[derive(Debug, Clone)]
+enum MLKW {
+    If,
+    Elif,
+    Else,
 
     Lambda,
 
-    Set,
-
-    Do,End,
+    Var,
+    Func,
 
     Match,
 
-    In,
+    Comma,
 }
 
-fn t2ml(vm:Vm,text: &Vec<Token>) -> ErrSignal<Vec<ML>> {
-    fn tran(vm:Vm,token: &Token) -> ErrSignal<ML> {
+fn t2ml(vm: Vm, text: &Vec<Token>) -> ErrSignal<Vec<ML>> {
+    fn tran(vm: Vm, token: &Token) -> ErrSignal<ML> {
         use ML::*;
 
         let ml = match token {
@@ -151,27 +151,53 @@ fn t2ml(vm:Vm,text: &Vec<Token>) -> ErrSignal<Vec<ML>> {
 
             Token::The(ref c) => ML::The(c.clone()),
 
-            Token::Id(ref s) => {
-                match s.as_str(){
-                    "\\"=>Lambda,
-                    "if"=>If,
-                    "then"=>Then,
-                    "else"=>Else,
-                    "set"=>Set,
-                    "in"=>In,
-                    "do"=>Do,
-                    "end"=>End,
-                    "match"=>Match,
-                    _=>Id(s.clone())
+            Token::Id(ref s) => match s.as_str() {
+                "\\" | "if" | "elif" | "else" | "var" | "func" | "match" | "," | ";" => 
+                    match s.as_str() {
+                        "\\" => ML::Keys(MLKW::Lambda),
+                        "if" => ML::Keys(MLKW::If),
+                        "elif" => ML::Keys(MLKW::Elif),
+                        "else" => ML::Keys(MLKW::Else),
+                        "var" => ML::Keys(MLKW::Var),
+                        "func" => ML::Keys(MLKW::Func),
+                        "match" => ML::Keys(MLKW::Match),
+                        "," => ML::Keys(MLKW::Comma),
+                        ";" => ML::Keys(MLKW::Comma),
+                        _ => unreachable!(),
+                    },
+                "in" | "+" | "-" | "*" | "/" | "%" | "==" | "!=" | ">=" | "<=" | ">" | "<"
+                | "&&" | "||" | "!" => {
+                    use MLOp::*;
+                    Op(match s.as_str() {
+                        "in" => In,
+                        "+" => Add,
+                        "-" => Sub,
+                        "*" => Mul,
+                        "/" => Div,
+                        "%" => Mod,
+                        "==" => Eq,
+                        "!=" => Ne,
+                        ">=" => Ge,
+                        "<=" => Le,
+                        ">" => Gt,
+                        "<" => Lt,
+                        "&&" => And,
+                        "||" => Or,
+                        "!" => Not,
+                        _ => unreachable!(),
+                    })
                 }
+                _ => Id(s.clone()),
             },
-            
+
             Token::Str(ref s) => ML::Str(s.clone()),
+
             Token::Template(ref s) => ML::Template(s.clone()),
+
             Token::Line(ref b) => {
                 let mut ml = vec![];
                 for token in b {
-                    ml.push(tran(vm,token)?);
+                    ml.push(tran(vm, token)?);
                 }
                 ML::Line(ml)
             }
@@ -179,7 +205,7 @@ fn t2ml(vm:Vm,text: &Vec<Token>) -> ErrSignal<Vec<ML>> {
             Token::Bracket(ref b) => {
                 let mut ml = vec![];
                 for token in b {
-                    ml.push(tran(vm,token)?);
+                    ml.push(tran(vm, token)?);
                 }
                 ML::Bracket(ml)
             }
@@ -187,14 +213,14 @@ fn t2ml(vm:Vm,text: &Vec<Token>) -> ErrSignal<Vec<ML>> {
             Token::Large(ref b) => {
                 let mut ml = vec![];
                 for token in b {
-                    ml.push(tran(vm,token)?);
+                    ml.push(tran(vm, token)?);
                 }
                 ML::Large(ml)
             }
             Token::Middle(ref b) => {
                 let mut ml = vec![];
                 for token in b {
-                    ml.push(tran(vm,token)?);
+                    ml.push(tran(vm, token)?);
                 }
                 ML::Middle(ml)
             }
@@ -213,35 +239,164 @@ fn t2ml(vm:Vm,text: &Vec<Token>) -> ErrSignal<Vec<ML>> {
     Ok(result)
 }
 
-fn important(expr: &Vec<ML>) -> Code {
+fn important(expr: &Vec<ML>) -> ErrSignal<Code> {
     use ML::*;
     //todo!("重头戏")
-
-    let mut bracket = vec![];
+    let mut iter = expr.iter();
     let mut stage1 = vec![];
 
-    for token in expr.iter() {
-        if let Id(ref s) = token {
-            match s.as_str() {
-                "+" | "-" | "*" | "/" | "++" | "--" | "%" | "==" | "!=" | ">=" | "<="
-                | ">" | "<" | "&&" | "||" | "!" | "neg" | "@" | ":" | "~" => {
-                    stage1.push(bracket);
-                    stage1.push(vec![token]);
+    while let Some(token) = iter.next() {
+        fn closure<'a>(
+            iter: &mut impl Iterator<Item = &'a ML>,
+            mut hc: Vec<ML>,
+            stage1: &mut Vec<(Vec<ML2>, MLOp)>,
+        ) -> ErrSignal<()> {
 
-                    bracket = vec![];
+            fn up(mls: Vec<ML>) -> ErrSignal<Vec<ML2>> {
+                fn up_a(ml:ML,iter:&mut impl Iterator<Item = ML>)->ErrSignal<ML2>{
+                    let hc = match ml{
+                        Id(s)=> ML2::Id(s),
+                        Number(f)=> ML2::Number(f),
+                        Str(s)=> ML2::Str(s),
+                        Template(s)=> ML2::Template(s),
+
+                        The(v)=> ML2::The(v),
+
+                        Op(_)=>unreachable!(),
+
+                        Keys(k)=>{
+                            match k{
+                                MLKW::If=>{
+                                    let mut last = false;
+                                    let hc = loop{
+                                        match iter.next(){
+                                            None=> return Err(
+                                                Abort::ThrowString("expect expression after if".to_owned())
+                                            ),
+                                            Some(mm)=>match mm{
+                                                
+                                            }
+                                        }
+                                    };
+                                    ML2::If(hc)
+                                }
+                                _=>todo!()
+                            }
+                        }
+
+                        Bracket(b)=>{
+                            let mut result = Vec::with_capacity(b.len());
+                            for ml in b{
+                                result.push(up_a(ml,iter)?)
+                            }
+                            ML2::Bracket(result)
+                        }
+
+                        Large(b)=>{
+                            let mut result = Vec::with_capacity(b.len());
+                            for ml in b{
+                                result.push(up_a(ml,iter)?)
+                            }
+                            ML2::Large(result)
+                        }
+
+                        Line(b)=>{
+                            let mut result = Vec::with_capacity(b.len());
+                            for ml in b{
+                                result.push(up_a(ml,iter)?)
+                            }
+                            ML2::Line(result)
+                        }
+
+                        Middle(b)=>{
+                            let mut result = Vec::with_capacity(b.len());
+                            for ml in b{
+                                result.push(up_a(ml,iter)?)
+                            }
+                            ML2::Middle(result)
+                        }
+                    };
+                    Ok(hc)
                 }
-                _ => bracket.push(token),
+                let mut result = Vec::with_capacity(mls.len());
+                let mut iter = mls.into_iter();
+
+                loop{
+                    match iter.next(){
+                        Some(ml)=>{
+                            let hc = up_a(ml,&mut iter)?;
+                            result.push(hc);
+                        }
+                        None => break,
+                    }
+                }
+                result.shrink_to_fit();
+                Ok(result)
             }
-        } else {
-            bracket.push(token)
+
+            loop {
+                match iter.next() {
+                    Some(t) => match t {
+                        Op(op) => {
+                            stage1.push((up(hc)?, op.clone()));
+                            break;
+                        }
+                        _ => hc.push(t.clone()),
+                    },
+                    None => {
+                        stage1.push((up(hc)?, MLOp::None));
+                        break;
+                    }
+                }
+            }
+            Ok(())
+        }
+        match token {
+            Op(MLOp::Sub) => closure(&mut iter, vec![Id("neg".to_owned())], &mut stage1)?,
+            Op(_) => {
+                return Err(Abort::ThrowString(format!(
+                    "unexpect operator: {:?}",
+                    token
+                )))
+            }
+            _ => closure(&mut iter, vec![], &mut stage1)?,
         }
     }
 
-    drop(bracket);
-
-    let _stage1_iter = stage1.into_iter().map(|tv| (tv, 0usize));
+    let _stage1_iter = stage1.into_iter().map(|(mls, op)| (mls, op, 0usize));
 
     todo!("重头戏: 对运算符进行提升");
 
     //()
+}
+
+enum ML2{
+    If(Vec<Vec<(ML2, ML2)>>),
+
+    Lambda(Vec<String>, Box<ML2>),
+
+    Var(String, Box<ML2>),
+
+    Func(Option<String>, Vec<String>, Box<ML2>),
+
+    Match(Box<ML2>, Vec<(ML2, ML2)>),
+
+    Id(String),
+
+    // Int(BigInt),
+    // Float(f64),
+    Number(f64),
+
+    Str(String),
+    Template(String),
+
+    Bracket(Vec<ML2>),
+    Large(Vec<ML2>),
+    Middle(Vec<ML2>),
+
+    Line(Vec<ML2>),
+
+    //Option(String),
+    //Lambda(Vec<String>,Box<Code>),
+    The(Var),
 }

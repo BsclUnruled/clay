@@ -736,7 +736,7 @@ impl<'a> Parser<'a> {
                 None => return Err("Unexpected end of code(from parse_escape)".to_owned()),
             }
         };
-        Ok(Token::Str(string::escape(&result)))
+        Ok(Token::Str(string::escape(&result)?))
     }
 
     fn parse_str(&self) -> Return {

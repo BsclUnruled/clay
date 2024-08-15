@@ -1,20 +1,20 @@
-use std::io::Write;
-use std::process::exit;
 use crate::clay::parse::t2c;
 use crate::clay::prelude::objects::func::{Func, Script};
 use crate::clay::var::{ToVar, Virtual};
 use crate::clay::vm::env::void_ctx;
 use crate::clay::vm::signal::Signal;
 use crate::clay::{parse, vm};
+use std::io::Write;
+use std::process::exit;
 
 use super::objects::args::Args;
 use super::objects::method::Method;
 
 pub fn repl() -> Signal {
-    println!("clay,启动\n输入exit退出");
+    println!("clay,启动\n输入.exit退出");
     let vm = vm::runtime::Vm::new()?;
 
-    inner_repl(Args::new(vm, &[] as &[_],void_ctx(vm)))
+    inner_repl(Args::new(vm, &[] as &[_], void_ctx(vm)))
 }
 
 pub fn inner_repl(all: Args) -> Signal {
@@ -22,7 +22,6 @@ pub fn inner_repl(all: Args) -> Signal {
     let binding = vm.str()?.unbox()?;
 
     {
-        
         let to_str: &Method = binding.cast()?;
 
         let mut _begin = 0;
@@ -40,12 +39,32 @@ pub fn inner_repl(all: Args) -> Signal {
             let mut input = String::new();
             std::io::stdin().read_line(&mut input).unwrap();
 
-            if input.trim() == "exit" {
+            if input.trim() == ".exit" {
                 break;
+            } else if input.trim().ends_with("{") {
+                loop {
+                    print!("....~ ");
+
+                    //读取键盘输入
+                    match std::io::stdout().flush() {
+                        Ok(_) => (),
+                        Err(e) => panic!("Error: {:?}", e),
+                    };
+
+                    let mut in_input = String::new();
+                    std::io::stdin().read_line(&mut in_input).unwrap();
+
+                    input += &in_input;
+
+                    if in_input.trim().ends_with("}") {
+                        println!();
+                        break;
+                    }
+                }
             }
 
             //记录有几行输入
-            
+
             let line = input.split("\n").collect::<Vec<_>>().len();
 
             {
@@ -61,20 +80,21 @@ pub fn inner_repl(all: Args) -> Signal {
                 }
             };
 
-            #[cfg(debug_assertions)]{
+            #[cfg(debug_assertions)]
+            {
                 println!("\n{:#?}\n", hc);
                 continue;
             }
-            
+
             let func = {
-                let codes = t2c(&hc,all.vm())?;
+                let codes = t2c(&hc, all.vm())?;
                 let script = Script::new(
-                    &Some(if _begin == end{
-                        format!("line {}",_begin)
-                    }else{
-                        format!("line {} ~ {}",_begin, end)
+                    &Some(if _begin == end {
+                        format!("line {}", _begin)
+                    } else {
+                        format!("line {} ~ {}", _begin, end)
                     }),
-                    &[], 
+                    &[],
                     vm.get_context(),
                     &codes,
                 );
