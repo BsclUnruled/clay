@@ -96,12 +96,12 @@ impl<'a> Parser<'a> {
                 #[cfg(debug_assertions)]
                 println!("finish parse");
 
-                return Ok(Token::Block(result));
+                return Ok(Token::Large(result));
             } else {
                 continue;
             }
         }
-        return Ok(Token::Block(result));
+        return Ok(Token::Large(result));
     }
 
     fn peek(&self) -> Option<char> {
@@ -592,7 +592,7 @@ impl<'a> Parser<'a> {
                 #[cfg(debug_assertions)]
                 println!("finish parse_block");
 
-                return Ok(Token::Block(result));
+                return Ok(Token::Large(result));
             } else {
                 continue;
             }

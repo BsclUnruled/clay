@@ -7,7 +7,7 @@ use std::{
     collections::LinkedList, ops::Deref, process::exit, rc::{Rc, Weak}
 };
 use super::{
-    env::{self, Context}, signal::{Abort, ErrSignal, Signal}, CtxType
+    env, signal::{Abort, ErrSignal, Signal}, CtxType
 };
 
 pub struct Runtime {
@@ -17,7 +17,7 @@ pub struct Runtime {
 
     heap: LinkedList<Rc<VarBox>>,
 
-    global_context: CtxType,
+    global_context: Option<CtxType>,
 
     undef: Option<Var>,
     r#str:Option<Var>,
@@ -154,8 +154,16 @@ impl Vm {
     //     })
     // }
 
-    pub fn get_context(&self) ->&Rc<dyn Context> {
-        &self.borrow().global_context
+    pub fn get_context(&self) ->&CtxType {
+        match self.borrow().global_context{
+            None =>{
+                self.borrow_mut().global_context = Some(
+                    env::default(*self,env::void_ctx(*self))
+                );
+                self.get_context()
+            }
+            Some(ref ctx) => ctx
+        }
     }
     pub fn get_id(&self) -> usize {
         let inner = self.borrow_mut();
@@ -189,11 +197,6 @@ impl Vm {
     }
 
     pub fn new() -> ErrSignal<Vm> {
-        
-
-        let global_context = env::default(
-            None
-        );
 
         // let (ctrl,lock) = make_lock();
 
@@ -203,7 +206,7 @@ impl Vm {
 
             heap: LinkedList::new(),
 
-            global_context,
+            global_context:None,
 
             undef: None,
             r#str: None,
@@ -225,7 +228,7 @@ impl Vm {
         
                 
         vm.0.borrow_mut().undef = Some(
-            vm.borrow().global_context.def(vm,"undef", &undef::new(vm))
+            vm.get_context().def(vm,"undef", &undef::new(vm))
                 .expect("undef载入失败")
         );
 
@@ -235,7 +238,7 @@ impl Vm {
         }
 
         vm.0.borrow_mut().r#str = Some(
-            vm.borrow().global_context.get(vm,"str")
+            vm.get_context().get(vm,"str")
                 .expect("str载入失败")
         );
 

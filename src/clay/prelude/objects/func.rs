@@ -34,7 +34,7 @@ impl Script{
             })
             .collect();
 
-        env::from_map(map,Some(Rc::clone(&self.ctx)))
+        env::from_map(vm,map,Some(Rc::clone(&self.ctx)))
     }
 
     pub fn call(&self,all:Args)->Signal{
@@ -42,6 +42,7 @@ impl Script{
         let args = all.args();
 
         let ctx = env::default(
+            *vm,
             all.ctx()
         );
 

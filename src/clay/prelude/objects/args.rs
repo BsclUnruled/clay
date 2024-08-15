@@ -1,18 +1,18 @@
-use crate::clay::{var::Var, vm::{runtime::Vm, CtxType}};
+use crate::clay::{var::Var, vm::{env, runtime::Vm, CtxType}};
 
 #[derive(Clone)]
 pub struct Args<'l> {
     vm:Vm,
     args:&'l[Var],
-    ctx:Option<CtxType>,
+    ctx:CtxType,
 }
 
 impl<'l> Args<'l> {
-    pub fn new(vm:Vm, args:&'l[Var]) -> Self {
+    pub fn new(vm:Vm, args:&'l[Var], ctx:CtxType) -> Self {
         Self{
             vm,
             args,
-            ctx:None,
+            ctx,
         }
     }
 
@@ -24,7 +24,7 @@ impl<'l> Args<'l> {
         self.args
     }
 
-    pub fn ctx(&self) -> Option<CtxType> {
+    pub fn ctx(&self) -> CtxType {
         self.ctx.clone()
     }
 }
@@ -36,7 +36,7 @@ impl<'l> From<(Vm,&'l [Var])> for Args<'l> {
         Self{
             vm,
             args,
-            ctx:None,
+            ctx:env::void_ctx(vm),
         }
     }
 }
@@ -49,7 +49,7 @@ impl<'l> From<(Vm,&'l [Var],CtxType)> for Args<'l> {
         Self{
             vm,
             args,
-            ctx:Some(ctx),
+            ctx,
         }
     }
 }

@@ -2,6 +2,7 @@ use std::io::Write;
 use std::process::exit;
 use crate::clay::prelude::objects::func::{Func, Script};
 use crate::clay::var::{ToVar, Virtual};
+use crate::clay::vm::env::void_ctx;
 use crate::clay::vm::signal::Signal;
 use crate::clay::{parse, vm};
 
@@ -12,7 +13,7 @@ pub fn repl() -> Signal {
     println!("clay,启动\n输入exit退出");
     let vm = vm::runtime::Vm::new()?;
 
-    inner_repl(Args::new(vm, &[]))
+    inner_repl(Args::new(vm, &[] as &[_],void_ctx(vm)))
 }
 
 pub fn inner_repl(all: Args) -> Signal {
@@ -82,7 +83,7 @@ pub fn inner_repl(all: Args) -> Signal {
                 Ok(v) => {
                     println!(
                         "{}\n",
-                        match Virtual::call(to_str, Args::new(vm, &[v])) {
+                        match Virtual::call(to_str, Args::from((vm, &[v] as &[_]))) {
                             Ok(v) => match v.unbox() {
                                 Ok(s_v) => match s_v.cast::<String>() {
                                     Ok(s) => s.to_string(),

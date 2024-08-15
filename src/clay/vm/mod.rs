@@ -1,5 +1,5 @@
 use crate::clay::prelude::objects::args::Args;
-use super::var::{ToVar, Var};
+use super::var::{ToVar, Var, VarBox};
 use runtime::Vm;
 use signal::{Abort, ErrSignal, Signal};
 use std::rc::Rc;
@@ -196,7 +196,7 @@ pub enum Operstor {
     Neg,Index(CodeVec)
 }
 
-pub type CtxType = Rc<dyn env::Context>;
+pub type CtxType = Rc<VarBox>;
 
 pub trait Eval {
     fn eval(&self, all:Args) -> Signal;

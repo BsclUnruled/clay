@@ -1,9 +1,25 @@
-if(true){
-    log 'sb'
-}else{
-    log 'not sb'
-}
+if true
+then log 'true'
+else if 1 == '1'
+then log '1 == "1"'
+else do
+    add(x,y)=x + y
+    add 2 3 |> log
 
-let const_arr = $[1,2,3,4,5]
-log const_arr[2]
-for const_arr@(v)=log v
+    hc = add 4 5
+    match hc in
+        1 then log 'hc is 1'
+        _ then log 'hc is not 1'--must
+    
+    hc2 = [1,2,3]
+    for hc2\(i)=log i
+
+    set hc = {
+        hc: 1,
+        hc2: [1,2,3]
+        12: 'hello'
+    }
+
+    for hc\([k,v])=
+        log `{k}: {v}`
+end

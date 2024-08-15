@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap};
 
-use crate::clay::{var::{Var, Virtual}, vm::{env::Context, signal::Abort}};
+use crate::clay::{var::{Var, Virtual}, vm::signal::Abort};
 
 pub struct Module {
     name: Option<String>,
@@ -34,7 +34,11 @@ impl Module{
     }
 }
 
-impl Context for Module {
+impl Virtual for Module {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     fn def(&self,_:crate::clay::vm::runtime::Vm , name: &str, value:&Var)->crate::clay::vm::signal::Signal {
         if self.exports.borrow().contains_key(name) {
             return 
@@ -49,7 +53,7 @@ impl Context for Module {
         }
     }
 
-    fn for_each(&self,f:fn(&Var)) {
+    fn gc_for_each(&self,f:fn(&Var)) {
         for (_, var) in self.exports.borrow().iter() {
             f(var);
         }
@@ -70,11 +74,5 @@ impl Context for Module {
     fn set(&self,_:crate::clay::vm::runtime::Vm, name: &str, value:&Var)->crate::clay::vm::signal::Signal {
         self.exports.borrow_mut().insert(name.into(), value.clone());
         Ok(value.clone())
-    }
-}
-
-impl Virtual for Module {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
     }
 }

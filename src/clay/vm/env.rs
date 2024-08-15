@@ -1,3 +1,5 @@
+use crate::clay::var::ToVar;
+use crate::clay::var::Virtual;
 use crate::clay::Cell;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -10,19 +12,19 @@ use super::signal::Abort;
 use super::signal::Signal;
 use super::CtxType;
 
-pub trait Context{
-    fn get(&self,vm:Vm, name: &str)->Signal;
+// pub trait Context{
+//     fn get(&self,vm:Vm, name: &str)->Signal;
 
-    fn set(&self,vm:Vm, name: &str, value:&Var)->Signal;
+//     fn set(&self,vm:Vm, name: &str, value:&Var)->Signal;
 
-    fn has(&self,_:Vm, name: &str)->bool;
+//     fn has(&self,_:Vm, name: &str)->bool;
 
-    fn def(&self,_:Vm , name: &str, value:&Var)->Signal;
+//     fn def(&self,_:Vm , name: &str, value:&Var)->Signal;
 
-    fn for_each(&self,_:fn(&Var)) {}
-}
+//     fn for_each(&self,_:fn(&Var)) {}
+// }
 
-pub struct Ctx(pub(crate)Cell<HashMap<String, Var>>,pub(crate)Option<CtxType>);
+pub struct Ctx(pub(crate)Cell<HashMap<String, Var>>,pub(crate) CtxType);
 
 // impl Debug for Ctx{
 //     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -36,18 +38,15 @@ pub struct Ctx(pub(crate)Cell<HashMap<String, Var>>,pub(crate)Option<CtxType>);
 //     }
 // }
 
-impl Context for Ctx{
+impl Virtual for Ctx{
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     fn get(&self,vm:Vm, name: &str)->Signal {
         match self.0.borrow().get(name){
             Some(var) => Ok(var.clone()),
-            None => match &self.1{
-                Some(parent) => parent.get(vm,name),
-                None => Err(
-                    Abort::ThrowString(
-                        format!("Error(get):未能找到变量 {:?}",name)
-                    )
-                )
-            }
+            None => self.1.get(vm,name)
         }
     }
     fn set(&self,vm:Vm, name: &str, value:&Var)->Signal{
@@ -56,10 +55,7 @@ impl Context for Ctx{
             self.0.borrow_mut().insert(name.to_string(), value.clone());
             Ok(value.clone())
         }else{
-            match &self.1{
-                Some(parent) => parent.set(vm,name, value),
-                None => panic!("Error(set):未能找到变量 {:?}",name)
-            }
+            self.1.get(vm,name)
         }
     }
 
@@ -72,25 +68,28 @@ impl Context for Ctx{
         Ok(value.clone())
     }
 
-    fn for_each(&self,f:fn(&Var)) {
+    fn gc_for_each(&self,f:fn(&Var)) {
         for (_, var) in self.0.borrow().iter() {
             f(var);
         }
     }
 }
 
-pub fn from_map(map:HashMap<String, Var>,upper:Option<CtxType>) -> CtxType{
+pub fn from_map(vm:Vm,map:HashMap<String, Var>,upper:Option<CtxType>) -> CtxType{
     Rc::new(Ctx(
         Cell::new(map),
-        upper
-    ))
+        match upper {
+            Some(upper) => upper,
+            None => void_ctx(vm)
+        }
+    ).to_varbox(vm))
 }
 
-pub fn default(upper:Option<CtxType>)->CtxType{
+pub fn default(vm:Vm,upper:CtxType)->CtxType{
     Rc::new(Ctx(
         Cell::new(HashMap::new()),
         upper
-    ))
+    ).to_varbox(vm))
 }
 
 #[derive(Debug)]
@@ -102,8 +101,12 @@ impl Display for Void{
     }
 }
 
-impl Context for Void{
-    fn for_each(&self,_:fn(&Var)) {}
+impl Virtual for Void{
+    fn gc_for_each(&self,_:fn(&Var)) {}
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 
     fn def(&self,vm:Vm, name: &str, _:&Var)->Signal{
         Err(error::throw(vm,&format!("Error(def {:?} to undef_ctx):没有作用域了 (from undef_ctx)",name)))
@@ -123,8 +126,8 @@ impl Context for Void{
     }
 }
 
-pub fn void_ctx() -> CtxType{
-    Rc::new(Void())
+pub fn void_ctx(vm:Vm) -> CtxType{
+    Rc::new(Void().to_varbox(vm))
 }
 
 // //自动创建并回收作用域

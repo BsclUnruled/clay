@@ -11,12 +11,13 @@ pub enum Mark {
 
 pub fn gc(root: &CtxType, vm: Vm) {
     while !vm.heap().is_empty(){
+        root.set_mark(Mark::New);
         ms(root, vm);
     }
 }
 
 fn ms(root: &CtxType, vm: Vm) {
-    root.for_each(marker);
+    root.gc_for_each(marker);
 
     let mut async_iter = vm.heap().iter();
 
