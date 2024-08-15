@@ -1,5 +1,6 @@
 use std::io::Write;
 use std::process::exit;
+use crate::clay::parse::t2c;
 use crate::clay::prelude::objects::func::{Func, Script};
 use crate::clay::var::{ToVar, Virtual};
 use crate::clay::vm::env::void_ctx;
@@ -60,11 +61,13 @@ pub fn inner_repl(all: Args) -> Signal {
                 }
             };
 
-            #[cfg(debug_assertions)]
-            println!("\n{:#?}\n", hc);
-
+            #[cfg(debug_assertions)]{
+                println!("\n{:#?}\n", hc);
+                continue;
+            }
+            
             let func = {
-                let codes = hc.format(vm)?;
+                let codes = t2c(&hc,all.vm())?;
                 let script = Script::new(
                     &Some(if _begin == end{
                         format!("line {}",_begin)
@@ -73,7 +76,7 @@ pub fn inner_repl(all: Args) -> Signal {
                     }),
                     &[], 
                     vm.get_context(),
-                    &[codes],
+                    &codes,
                 );
 
                 Func::Script(script).to_var(vm)

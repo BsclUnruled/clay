@@ -5,6 +5,10 @@ use std::{cell::Cell, collections::LinkedList, str::FromStr};
 // pub mod clay;
 // pub use clay as new_parser;
 
+mod t2c;
+
+pub use t2c::t2c;
+
 pub struct Parser<'a> {
     code: &'a str,
     index: Cell<usize>,
@@ -25,37 +29,6 @@ fn closure(result: &mut Vec<Token>, token: &mut Vec<char>) -> Result<(), String>
         };
 
         if yes {
-            /*return match BigInt::from_str(&t) {
-                Ok(n) => {
-                    result.push(Token::Int(n));
-                    Ok(())
-                }
-                Err(_) => match f64::from_str(&t.replace("_", "")) {
-                    Ok(n) => {
-                        result.push(Token::Float(n));
-                        Ok(())
-                    }
-                    Err(_) => Err(format!("Invalid number: {}", t)),
-                },
-            };*/
-            // if t.contains(".") {
-            //     match f64::from_str(&t.replace("_", "")) {
-            //         Ok(n) => {
-            //             result.push(Token::Float(n));
-            //             Ok(())
-            //         }
-            //         Err(_) => Err(format!("Invalid number: {}", t)),
-            //     }
-            // } else {
-            //     match BigInt::from_str(&t) {
-            //         Ok(n) => {
-            //             result.push(Token::Int(n));
-            //             Ok(())
-            //         }
-            //         Err(_) => Err(format!("Invalid number: {}", t)),
-            //     }
-            // }
-
             match Number::from_str(&t.replace("_", "")) {
                 Ok(n) => {
                     result.push(Token::Number(n));
@@ -80,7 +53,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&self) -> Return {
+    pub fn parse(&self) -> Result<Vec<Token>, String> {
         #[cfg(debug_assertions)]
         println!("start parse");
 
@@ -96,12 +69,12 @@ impl<'a> Parser<'a> {
                 #[cfg(debug_assertions)]
                 println!("finish parse");
 
-                return Ok(Token::Large(result));
+                return Ok(result);
             } else {
                 continue;
             }
         }
-        return Ok(Token::Large(result));
+        return Ok(result);
     }
 
     fn peek(&self) -> Option<char> {
