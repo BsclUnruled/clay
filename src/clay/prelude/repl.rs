@@ -1,14 +1,13 @@
-use crate::clay::parse::t2c;
 use crate::clay::prelude::objects::func::{Func, Script};
-use crate::clay::var::{ToVar, Virtual};
+use crate::clay::var::ToVar;
 use crate::clay::vm::env::void_ctx;
 use crate::clay::vm::signal::Signal;
+use crate::clay::vm::Token;
 use crate::clay::{parse, vm};
 use std::io::Write;
 use std::process::exit;
 
 use super::objects::args::Args;
-use super::objects::method::Method;
 
 pub fn repl() -> Signal {
     println!("clay,启动\n输入.exit退出");
@@ -18,12 +17,9 @@ pub fn repl() -> Signal {
 }
 
 pub fn inner_repl(all: Args) -> Signal {
-    let vm = all.vm().clone();
-    let binding = vm.str()?.unbox()?;
+    let _vm = *all.vm();
 
     {
-        let to_str: &Method = binding.cast()?;
-
         let mut _begin = 0;
         let mut end = 0;
 
@@ -83,11 +79,17 @@ pub fn inner_repl(all: Args) -> Signal {
             #[cfg(debug_assertions)]
             {
                 println!("\n{:#?}\n", hc);
-                continue;
             }
 
             let func = {
-                let codes = t2c(&hc, all.vm())?;
+                let foo;
+                let codes:&[Token] = match hc {
+                    Token::Large(codes) =>{
+                        foo = codes;
+                        &foo
+                    },
+                    _ => &[hc],
+                };
                 let script = Script::new(
                     &Some(if _begin == end {
                         format!("line {}", _begin)
@@ -95,27 +97,23 @@ pub fn inner_repl(all: Args) -> Signal {
                         format!("line {} ~ {}", _begin, end)
                     }),
                     &[],
-                    vm.get_context(),
-                    &codes,
+                    _vm.get_context(),
+                    codes,
                 );
 
-                Func::Script(script).to_var(vm)
+                Func::Script(script).to_var(_vm)
             };
 
-            match vm.run_code(func) {
+            match _vm.run_code(func) {
                 Ok(v) => {
                     println!(
                         "{}\n",
-                        match Virtual::call(to_str, Args::from((vm, &[v] as &[_]))) {
-                            Ok(v) => match v.unbox() {
-                                Ok(s_v) => match s_v.cast::<String>() {
-                                    Ok(s) => s.to_string(),
-                                    Err(e) => e.to_string(),
-                                },
-                                Err(e) => e.to_string(),
-                            },
-                            Err(e) => e.to_string(),
-                        }
+                        v.unbox()?
+                            .get(_vm, "toStr")?
+                            .unbox()?
+                            .call(Args::new(_vm, &[], _vm.get_context().clone()))?
+                            .unbox()?
+                            .cast::<String>()?
                     );
                 }
                 Err(e) => eprintln!("{}", e),

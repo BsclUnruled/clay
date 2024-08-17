@@ -1,7 +1,7 @@
 // use tokio::{sync::mpsc::{channel, Receiver, Sender}, task::{yield_now, JoinHandle}};
 
 use crate::clay::{
-    prelude::{objects::{ method, undef}, to_str}, var::{Var, VarBox,}, Cell
+    prelude::objects::undef, var::{Var, VarBox,}, Cell
 };
 use std::{
     collections::LinkedList, ops::Deref, process::exit, rc::{Rc, Weak}
@@ -20,7 +20,6 @@ pub struct Runtime {
     global_context: Option<CtxType>,
 
     undef: Option<Var>,
-    r#str:Option<Var>,
 
     // ctrl:Control,
     // lock:Lock,
@@ -192,10 +191,6 @@ impl Vm {
         Ok(self.0.borrow().undef.as_ref().expect("undef被释放了").clone())
     }
 
-    pub fn r#str(&self)->Signal{
-        Ok(self.0.borrow().r#str.as_ref().expect("r#str被释放了").clone())
-    }
-
     pub fn new() -> ErrSignal<Vm> {
 
         // let (ctrl,lock) = make_lock();
@@ -209,7 +204,6 @@ impl Vm {
             global_context:None,
 
             undef: None,
-            r#str: None,
 
             // ctrl,
             // lock,
@@ -217,32 +211,22 @@ impl Vm {
 
         let hc = Vm(Box::leak(Box::new(Cell::new(hc))));
 
-        Ok(Self::init(hc))
+        Self::init(hc)
     }
 
     pub fn run_code(&self,_func:Var)->Signal{
         Err(Abort::ThrowString("not implemented yet(Vm::run_code)".to_owned()))
     }
 
-    fn init(vm: Vm) -> Vm {
+    fn init(vm: Vm) -> ErrSignal<Vm> {
         
                 
         vm.0.borrow_mut().undef = Some(
-            vm.get_context().def(vm,"undef", &undef::new(vm))
+            vm.get_context().unbox()?.def(vm,"undef", &undef::new(vm))
                 .expect("undef载入失败")
         );
 
-        /*global_init*/{
-            method::global_init(vm);
-            to_str::global_init(vm);    
-        }
-
-        vm.0.borrow_mut().r#str = Some(
-            vm.get_context().get(vm,"str")
-                .expect("str载入失败")
-        );
-
-        vm
+        Ok(vm)
     }
 
     pub fn mut_heap(&self) -> &mut LinkedList<Rc<VarBox>> {

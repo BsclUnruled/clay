@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Display;
 use crate::clay::var::Var;
-use std::rc::Rc;
 use super::error;
 use super::runtime::Vm;
 use super::signal::Abort;
@@ -46,7 +45,7 @@ impl Virtual for Ctx{
     fn get(&self,vm:Vm, name: &str)->Signal {
         match self.0.borrow().get(name){
             Some(var) => Ok(var.clone()),
-            None => self.1.get(vm,name)
+            None => self.1.unbox()?.get(vm,name)
         }
     }
     fn set(&self,vm:Vm, name: &str, value:&Var)->Signal{
@@ -55,7 +54,7 @@ impl Virtual for Ctx{
             self.0.borrow_mut().insert(name.to_string(), value.clone());
             Ok(value.clone())
         }else{
-            self.1.get(vm,name)
+            self.1.unbox()?.get(vm,name)
         }
     }
 
@@ -76,20 +75,20 @@ impl Virtual for Ctx{
 }
 
 pub fn from_map(vm:Vm,map:HashMap<String, Var>,upper:Option<CtxType>) -> CtxType{
-    Rc::new(Ctx(
+    Ctx(
         Cell::new(map),
         match upper {
             Some(upper) => upper,
             None => void_ctx(vm)
         }
-    ).to_varbox(vm))
+    ).to_var(vm)
 }
 
 pub fn default(vm:Vm,upper:CtxType)->CtxType{
-    Rc::new(Ctx(
+    Ctx(
         Cell::new(HashMap::new()),
         upper
-    ).to_varbox(vm))
+    ).to_var(vm)
 }
 
 #[derive(Debug)]
@@ -127,7 +126,7 @@ impl Virtual for Void{
 }
 
 pub fn void_ctx(vm:Vm) -> CtxType{
-    Rc::new(Void().to_varbox(vm))
+    Void().to_var(vm)
 }
 
 // //自动创建并回收作用域

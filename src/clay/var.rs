@@ -13,9 +13,7 @@ pub use std::ops::ControlFlow::{Continue as Go,Break as Stop};
 pub trait Virtual:Any + 'static {
     fn ptr(&self)->String{format!("{:p}",self)}
 
-    fn get_ctor(&self)->Option<Var>{//None就是Any为构造函数
-        None
-    }
+    fn callable(&self)->bool{false}
 
     fn gc_for_each(&self,_:fn(&Var)){}
 

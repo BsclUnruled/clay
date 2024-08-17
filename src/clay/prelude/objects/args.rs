@@ -1,14 +1,14 @@
-use crate::clay::{var::Var, vm::{env, runtime::Vm, CtxType}};
+use crate::clay::vm::{env, runtime::Vm, CtxType, Token};
 
 #[derive(Clone)]
 pub struct Args<'l> {
     vm:Vm,
-    args:&'l[Var],
+    args:&'l[Token],
     ctx:CtxType,
 }
 
 impl<'l> Args<'l> {
-    pub fn new(vm:Vm, args:&'l[Var], ctx:CtxType) -> Self {
+    pub fn new(vm:Vm, args:&'l[Token], ctx:CtxType) -> Self {
         Self{
             vm,
             args,
@@ -20,7 +20,7 @@ impl<'l> Args<'l> {
         &self.vm
     }
 
-    pub fn args(&self) -> &'l [Var] {
+    pub fn args(&self) -> &'l [Token] {
         self.args
     }
 
@@ -29,9 +29,9 @@ impl<'l> Args<'l> {
     }
 }
 
-impl<'l> From<(Vm,&'l [Var])> for Args<'l> {
+impl<'l> From<(Vm,&'l [Token])> for Args<'l> {
     fn from(
-        (vm,args):(Vm,&'l [Var])
+        (vm,args):(Vm,&'l [Token])
     ) -> Self {
         Self{
             vm,
@@ -41,10 +41,10 @@ impl<'l> From<(Vm,&'l [Var])> for Args<'l> {
     }
 }
 
-impl<'l> From<(Vm,&'l [Var],CtxType)> for Args<'l> {
+impl<'l> From<(Vm,&'l [Token],CtxType)> for Args<'l> {
     fn from(
         (vm,args,ctx)
-            :(Vm,&'l [Var],CtxType)
+            :(Vm,&'l [Token],CtxType)
     ) -> Self {
         Self{
             vm,

@@ -5,10 +5,6 @@ use std::{cell::Cell, collections::LinkedList, str::FromStr};
 // pub mod clay;
 // pub use clay as new_parser;
 
-mod t2c;
-
-pub use t2c::t2c;
-
 pub struct Parser<'a> {
     code: &'a str,
     index: Cell<usize>,
@@ -53,7 +49,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&self) -> Result<Vec<Token>, String> {
+    pub fn parse(&self) -> Result<Token, String> {
         #[cfg(debug_assertions)]
         println!("start parse");
 
@@ -69,12 +65,12 @@ impl<'a> Parser<'a> {
                 #[cfg(debug_assertions)]
                 println!("finish parse");
 
-                return Ok(result);
+                return Ok(Token::Large(result));
             } else {
                 continue;
             }
         }
-        return Ok(result);
+        return Ok(Token::Large(result));
     }
 
     fn peek(&self) -> Option<char> {
@@ -84,242 +80,242 @@ impl<'a> Parser<'a> {
         }
     }
 
-    // + - * / % ^ ! & | < > =   -> <-
-    // ++ -- ** // += -= *= /= %= == != <= >= && ||
-    // : @ ~
-    fn parse_symbol(&self, sym: char) -> Return {
-        #[cfg(debug_assertions)]
-        println!("parse_symbol");
+    // // + - * / % ^ ! & | < > =   -> <-
+    // // ++ -- ** // += -= *= /= %= == != <= >= && ||
+    // // : @ ~
+    // fn parse_symbol(&self, sym: char) -> Return {
+    //     #[cfg(debug_assertions)]
+    //     println!("parse_symbol");
 
-        let mut token = vec![sym];
+    //     let mut token = vec![sym];
 
-        match sym {
-            ':' | '@' | '~' => {
-                return Ok(Token::Id(token.iter().collect()));
-            }
-            '+' => {
-                match self.peek() {
-                    Some(c) => match c {
-                        '+' | '=' => {
-                            token.push(c);
-                            self.next();
-                            return Ok(Token::Id(token.iter().collect()));
-                        }
-                        _ => return Ok(Token::Id(token.iter().collect())),
-                    },
-                    None => {
-                        return Err(format!(
-                            "Unexpected end of code(from parse_symbol({:?}))",
-                            sym
-                        ))
-                    }
-                }
-            }
-            '-' => {
-                if let Some(c) = self.peek() {
-                    match c {
-                        '=' | '>' => {
-                            token.push(c);
-                            self.next();
-                            return Ok(Token::Id(token.iter().collect()));
-                        }
-                        '-' => {
-                            #[cfg(debug_assertions)]
-                            println!("use ignore:");
+    //     match sym {
+    //         ':' | '@' | '~' => {
+    //             return Ok(Token::Id(token.iter().collect()));
+    //         }
+    //         '+' => {
+    //             match self.peek() {
+    //                 Some(c) => match c {
+    //                     '+' | '=' => {
+    //                         token.push(c);
+    //                         self.next();
+    //                         return Ok(Token::Id(token.iter().collect()));
+    //                     }
+    //                     _ => return Ok(Token::Id(token.iter().collect())),
+    //                 },
+    //                 None => {
+    //                     return Err(format!(
+    //                         "Unexpected end of code(from parse_symbol({:?}))",
+    //                         sym
+    //                     ))
+    //                 }
+    //             }
+    //         }
+    //         '-' => {
+    //             if let Some(c) = self.peek() {
+    //                 match c {
+    //                     '=' | '>' => {
+    //                         token.push(c);
+    //                         self.next();
+    //                         return Ok(Token::Id(token.iter().collect()));
+    //                     }
+    //                     '-' => {
+    //                         #[cfg(debug_assertions)]
+    //                         println!("use ignore:");
 
-                            match self.ignore() {
-                                Ok(_) => {}
-                                Err(e) => return Err(e),
-                            }
-                        }
-                        _ => return Ok(Token::Id(token.iter().collect())),
-                    }
-                };
-                return Ok(Token::Id(token.iter().collect()));
-            }
-            '*' => {
-                match self.peek() {
-                    Some(c) => match c {
-                        '*' | '=' => {
-                            token.push(c);
-                            self.next();
-                            return Ok(Token::Id(token.iter().collect()));
-                        }
-                        _ => return Ok(Token::Id(token.iter().collect())),
-                    },
-                    None => {
-                        return Err(format!(
-                            "Unexpected end of code(from parse_symbol({:?}))",
-                            sym
-                        ))
-                    }
-                }
-            }
-            '/' => {
-                match self.peek() {
-                    Some(c) => match c {
-                        '/' | '=' => {
-                            token.push(c);
-                            self.next();
-                            return Ok(Token::Id(token.iter().collect()));
-                        }
-                        _ => return Ok(Token::Id(token.iter().collect())),
-                    },
-                    None => {
-                        return Err(format!(
-                            "Unexpected end of code(from parse_symbol({:?}))",
-                            sym
-                        ))
-                    }
-                }
-            }
-            '%' => {
-                match self.peek() {
-                    Some(c) => match c {
-                        '=' => {
-                            token.push(c);
-                            self.next();
-                            return Ok(Token::Id(token.iter().collect()));
-                        }
-                        _ => return Ok(Token::Id(token.iter().collect())),
-                    },
-                    None => {
-                        return Err(format!(
-                            "Unexpected end of code(from parse_symbol({:?}))",
-                            sym
-                        ))
-                    }
-                }
-            }
-            '^' => {
-                match self.peek() {
-                    Some(c) => match c {
-                        '=' => {
-                            token.push(c);
-                            self.next();
-                            return Ok(Token::Id(token.iter().collect()));
-                        }
-                        _ => return Ok(Token::Id(token.iter().collect())),
-                    },
-                    None => {
-                        return Err(format!(
-                            "Unexpected end of code(from parse_symbol({:?}))",
-                            sym
-                        ))
-                    }
-                }
-            }
-            '!' => {
-                match self.peek() {
-                    Some(c) => match c {
-                        '=' => {
-                            token.push(c);
-                            self.next();
-                            return Ok(Token::Id(token.iter().collect()));
-                        }
-                        _ => return Ok(Token::Id(token.iter().collect())),
-                    },
-                    None => {
-                        return Err(format!(
-                            "Unexpected end of code(from parse_symbol({:?}))",
-                            sym
-                        ))
-                    }
-                }
-            }
-            '&' => {
-                match self.peek() {
-                    Some(c) => match c {
-                        '&' => {
-                            token.push(c);
-                            self.next();
-                            return Ok(Token::Id(token.iter().collect()));
-                        }
-                        _ => return Ok(Token::Id(token.iter().collect())),
-                    },
-                    None => {
-                        return Err(format!(
-                            "Unexpected end of code(from parse_symbol({:?}))",
-                            sym
-                        ))
-                    }
-                }
-            }
-            '|' => {
-                match self.peek() {
-                    Some(c) => match c {
-                        '|' => {
-                            token.push(c);
-                            self.next();
-                            return Ok(Token::Id(token.iter().collect()));
-                        }
-                        _ => return Ok(Token::Id(token.iter().collect())),
-                    },
-                    None => {
-                        return Err(format!(
-                            "Unexpected end of code(from parse_symbol({:?}))",
-                            sym
-                        ))
-                    }
-                }
-            }
-            '>' => {
-                match self.peek() {
-                    Some(c) => match c {
-                        '=' => {
-                            token.push(c);
-                            self.next();
-                            return Ok(Token::Id(token.iter().collect()));
-                        }
-                        _ => return Ok(Token::Id(token.iter().collect())),
-                    },
-                    None => {
-                        return Err(format!(
-                            "Unexpected end of code(from parse_symbol({:?}))",
-                            sym
-                        ))
-                    }
-                }
-            }
-            '<' => {
-                match self.peek() {
-                    Some(c) => match c {
-                        '=' | '-' => {
-                            token.push(c);
-                            self.next();
-                            return Ok(Token::Id(token.iter().collect()));
-                        }
-                        _ => return Ok(Token::Id(token.iter().collect())),
-                    },
-                    None => {
-                        return Err(format!(
-                            "Unexpected end of code(from parse_symbol({:?}))",
-                            sym
-                        ))
-                    }
-                }
-            }
-            '=' => {
-                match self.peek() {
-                    Some(c) => match c {
-                        '=' => {
-                            token.push(c);
-                            self.next();
-                            return Ok(Token::Id(token.iter().collect()));
-                        }
-                        _ => return Ok(Token::Id(token.iter().collect())),
-                    },
-                    None => {
-                        return Err(format!(
-                            "Unexpected end of code(from parse_symbol({:?}))",
-                            sym
-                        ))
-                    }
-                }
-            }
-            _ => return Ok(Token::Id(token.iter().collect())),
-        };
-    }
+    //                         match self.ignore() {
+    //                             Ok(_) => {}
+    //                             Err(e) => return Err(e),
+    //                         }
+    //                     }
+    //                     _ => return Ok(Token::Id(token.iter().collect())),
+    //                 }
+    //             };
+    //             return Ok(Token::Id(token.iter().collect()));
+    //         }
+    //         '*' => {
+    //             match self.peek() {
+    //                 Some(c) => match c {
+    //                     '*' | '=' => {
+    //                         token.push(c);
+    //                         self.next();
+    //                         return Ok(Token::Id(token.iter().collect()));
+    //                     }
+    //                     _ => return Ok(Token::Id(token.iter().collect())),
+    //                 },
+    //                 None => {
+    //                     return Err(format!(
+    //                         "Unexpected end of code(from parse_symbol({:?}))",
+    //                         sym
+    //                     ))
+    //                 }
+    //             }
+    //         }
+    //         '/' => {
+    //             match self.peek() {
+    //                 Some(c) => match c {
+    //                     '/' | '=' => {
+    //                         token.push(c);
+    //                         self.next();
+    //                         return Ok(Token::Id(token.iter().collect()));
+    //                     }
+    //                     _ => return Ok(Token::Id(token.iter().collect())),
+    //                 },
+    //                 None => {
+    //                     return Err(format!(
+    //                         "Unexpected end of code(from parse_symbol({:?}))",
+    //                         sym
+    //                     ))
+    //                 }
+    //             }
+    //         }
+    //         '%' => {
+    //             match self.peek() {
+    //                 Some(c) => match c {
+    //                     '=' => {
+    //                         token.push(c);
+    //                         self.next();
+    //                         return Ok(Token::Id(token.iter().collect()));
+    //                     }
+    //                     _ => return Ok(Token::Id(token.iter().collect())),
+    //                 },
+    //                 None => {
+    //                     return Err(format!(
+    //                         "Unexpected end of code(from parse_symbol({:?}))",
+    //                         sym
+    //                     ))
+    //                 }
+    //             }
+    //         }
+    //         '^' => {
+    //             match self.peek() {
+    //                 Some(c) => match c {
+    //                     '=' => {
+    //                         token.push(c);
+    //                         self.next();
+    //                         return Ok(Token::Id(token.iter().collect()));
+    //                     }
+    //                     _ => return Ok(Token::Id(token.iter().collect())),
+    //                 },
+    //                 None => {
+    //                     return Err(format!(
+    //                         "Unexpected end of code(from parse_symbol({:?}))",
+    //                         sym
+    //                     ))
+    //                 }
+    //             }
+    //         }
+    //         '!' => {
+    //             match self.peek() {
+    //                 Some(c) => match c {
+    //                     '=' => {
+    //                         token.push(c);
+    //                         self.next();
+    //                         return Ok(Token::Id(token.iter().collect()));
+    //                     }
+    //                     _ => return Ok(Token::Id(token.iter().collect())),
+    //                 },
+    //                 None => {
+    //                     return Err(format!(
+    //                         "Unexpected end of code(from parse_symbol({:?}))",
+    //                         sym
+    //                     ))
+    //                 }
+    //             }
+    //         }
+    //         '&' => {
+    //             match self.peek() {
+    //                 Some(c) => match c {
+    //                     '&' => {
+    //                         token.push(c);
+    //                         self.next();
+    //                         return Ok(Token::Id(token.iter().collect()));
+    //                     }
+    //                     _ => return Ok(Token::Id(token.iter().collect())),
+    //                 },
+    //                 None => {
+    //                     return Err(format!(
+    //                         "Unexpected end of code(from parse_symbol({:?}))",
+    //                         sym
+    //                     ))
+    //                 }
+    //             }
+    //         }
+    //         '|' => {
+    //             match self.peek() {
+    //                 Some(c) => match c {
+    //                     '|' => {
+    //                         token.push(c);
+    //                         self.next();
+    //                         return Ok(Token::Id(token.iter().collect()));
+    //                     }
+    //                     _ => return Ok(Token::Id(token.iter().collect())),
+    //                 },
+    //                 None => {
+    //                     return Err(format!(
+    //                         "Unexpected end of code(from parse_symbol({:?}))",
+    //                         sym
+    //                     ))
+    //                 }
+    //             }
+    //         }
+    //         '>' => {
+    //             match self.peek() {
+    //                 Some(c) => match c {
+    //                     '=' => {
+    //                         token.push(c);
+    //                         self.next();
+    //                         return Ok(Token::Id(token.iter().collect()));
+    //                     }
+    //                     _ => return Ok(Token::Id(token.iter().collect())),
+    //                 },
+    //                 None => {
+    //                     return Err(format!(
+    //                         "Unexpected end of code(from parse_symbol({:?}))",
+    //                         sym
+    //                     ))
+    //                 }
+    //             }
+    //         }
+    //         '<' => {
+    //             match self.peek() {
+    //                 Some(c) => match c {
+    //                     '=' | '-' => {
+    //                         token.push(c);
+    //                         self.next();
+    //                         return Ok(Token::Id(token.iter().collect()));
+    //                     }
+    //                     _ => return Ok(Token::Id(token.iter().collect())),
+    //                 },
+    //                 None => {
+    //                     return Err(format!(
+    //                         "Unexpected end of code(from parse_symbol({:?}))",
+    //                         sym
+    //                     ))
+    //                 }
+    //             }
+    //         }
+    //         '=' => {
+    //             match self.peek() {
+    //                 Some(c) => match c {
+    //                     '=' => {
+    //                         token.push(c);
+    //                         self.next();
+    //                         return Ok(Token::Id(token.iter().collect()));
+    //                     }
+    //                     _ => return Ok(Token::Id(token.iter().collect())),
+    //                 },
+    //                 None => {
+    //                     return Err(format!(
+    //                         "Unexpected end of code(from parse_symbol({:?}))",
+    //                         sym
+    //                     ))
+    //                 }
+    //             }
+    //         }
+    //         _ => return Ok(Token::Id(token.iter().collect())),
+    //     };
+    // }
 
     //                                                      结果，是否以end结尾
     fn parse_line_unless(&self, end: Option<char>) -> Result<(Option<Token>, bool), String> {
@@ -354,14 +350,29 @@ impl<'a> Parser<'a> {
             } else {
                 match next {
                     Some(c) => match c {
-                        '+' | '-' | '*' | '/' | '%' | '^' | '!' | '&' | '|' | '<' | '>' | '='
-                        | ':' | '@' | '~' | '\\' => {
-                            closure(&mut result, &mut token)?;
+                        // '+' | '-' | '*' | '/' | '%' | '^' | '!' | '&' | '|' | '<' | '>' | '='
+                        // | ':' | '@' | '~' | '\\' => {
+                        //     closure(&mut result, &mut token)?;
 
-                            #[cfg(debug_assertions)]
-                            println!("use parse_symbol({:?}): ", c);
+                        //     #[cfg(debug_assertions)]
+                        //     println!("use parse_symbol({:?}): ", c);
 
-                            result.push(self.parse_symbol(c)?)
+                        //     result.push(self.parse_symbol(c)?)
+                        // }
+                        '-' => {
+                            if let Some(in_c) = self.peek() {
+                                if in_c == '-' {
+                                    #[cfg(debug_assertions)]
+                                    println!("use ignore:");
+
+                                    match self.ignore() {
+                                        Ok(_) => {}
+                                        Err(e) => return Err(e),
+                                    }
+                                } else {
+                                    token.push(c);
+                                }
+                            }
                         }
                         '(' => {
                             closure(&mut result, &mut token)?;
@@ -602,15 +613,30 @@ impl<'a> Parser<'a> {
                     }
                 }
                 Some(c) => match c {
-                    '+' | '-' | '*' | '/' | '%' | '^' | '!' | '&' | '|' | '<' | '>' | '=' | ':'
-                    | '@' | '~' => {
-                        closure(&mut result, &mut token)?;
+                    // '+' | '-' | '*' | '/' | '%' | '^' | '!' | '&' | '|' | '<' | '>' | '=' | ':'
+                    // | '@' | '~' => {
+                    //     closure(&mut result, &mut token)?;
 
-                        #[cfg(debug_assertions)]
-                        println!("use parse_symbol({:?}): ", c);
+                    //     #[cfg(debug_assertions)]
+                    //     println!("use parse_symbol({:?}): ", c);
 
-                        result.push(self.parse_symbol(c)?)
-                    }
+                    //     result.push(self.parse_symbol(c)?)
+                    // }
+                    '-' => {
+                            if let Some(in_c) = self.peek() {
+                                if in_c == '-' {
+                                    #[cfg(debug_assertions)]
+                                    println!("use ignore:");
+
+                                    match self.ignore() {
+                                        Ok(_) => {}
+                                        Err(e) => return Err(e),
+                                    }
+                                } else {
+                                    token.push(c);
+                                }
+                            }
+                        }
                     '(' => {
                         closure(&mut result, &mut token)?;
 

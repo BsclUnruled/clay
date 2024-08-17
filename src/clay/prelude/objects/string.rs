@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::clay::vm::signal::{Abort, ErrSignal};
 
 use super::args::Args;
@@ -54,17 +52,12 @@ pub fn template(s: &str, all: Args) -> ErrSignal<String> {
                         }
                     }
                     to_eval.shrink_to_fit();
-                    let hc = all.ctx().get(*all.vm(), &to_eval)?;
+                    let hc = all.ctx().unbox()?.get(*all.vm(), &to_eval)?;
 
-                    let b = all.vm().r#str()?;
-
-                    let b = b
+                    let b = hc.unbox()?
+                        .get(*all.vm(), "toStr")?
                         .unbox()?
-                        .call(Args::new(
-                            *all.vm(),
-                            &[hc],
-                            Rc::clone(all.vm().get_context()),
-                        ))?
+                        .call(Args::new(*all.vm(),&[],all.ctx().clone()))?
                         .unbox()?;
 
                     let r: &String = b.cast()?;

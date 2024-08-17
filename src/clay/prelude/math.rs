@@ -1,31 +1,32 @@
 use crate::clay::prelude::objects::args::Args;
-use crate::clay::var::{Number, ToVar};
-use crate::clay:: vm::signal::{Abort, Signal};
+use crate::clay:: vm::signal::Signal;
+use crate::clay::vm::{Eval, Token};
 
 pub fn add(all:Args)->Signal{
-    let vm = all.vm();
+    let vm = *all.vm();
     let args = all.args();
 
-    let x = match args.get(0) {
-        Some(x)=>x,
-        None=>return Err(
-            Abort::ThrowString("X呢?".to_owned())
-        )
-    };
+    let mut hc_vec = Vec::with_capacity(args.len());
 
-    let y = match args.get(1) {
-        Some(y)=>y,
-        None=>return Err(
-            Abort::ThrowString("Y呢?".to_owned())
-        )
-    };
+    for arg in args {
+        let hc = arg.eval(all.clone())?;
+        hc_vec.push(hc);
+    }
 
-    let binding = x.unbox()?;
-    let x_int:&Number = binding.cast()?;
-    let binding = y.unbox()?;
-    let y_int:&Number = binding.cast()?;
+    let mut sum = vm.undef()?;
+    let mut flag = true;
 
-    let result = x_int + y_int;
+    for hc in hc_vec {
+        if flag {
+            sum = hc;
+            flag = false;
+        }else{
+            sum = sum.unbox()?
+                .get(vm, "#add")?
+                .unbox()?
+                .call(Args::new(vm, &[Token::The(hc)],all.ctx().clone()))?
+        }
+    }
 
-    Ok(result.to_var(*vm))
+    Ok(sum)
 }
