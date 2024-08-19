@@ -1,0 +1,291 @@
+ToRun = { Global }
+
+Global = {
+    SOI ~ Line* ~ EOI
+}
+
+WHITESPACE = _{
+  
+  | COMMENT
+  | "\r"
+  | "\t"
+  | " "
+  | "\n"
+  | "\r\n"
+}
+
+NEWLINE = _{
+  
+  | "\n"
+  | COMMENT
+}
+
+COMMENT = _{
+    "--" ~ (!"\n" ~ ANY)* ~ &("\n" | EOI)
+}
+
+Args = {
+    "(" ~ (Ident ~ ("," ~ Ident)*)? ~ ","? ~ ")"
+}
+
+Assign = ${
+  
+  | "="
+  | "+="
+  | "-="
+  | "*="
+  | "/="
+}
+
+Number = ${
+    "-"? ~ '0'..'9' ~ ('0'..'9' | "_")* ~ ("." ~ ('0'..'9' | "_")*)?
+}
+
+Raw = ${
+    "'" ~ (!"'" ~ ANY)* ~ "'"
+}
+
+Escape = ${
+    "\"" ~ ("\\\"" | (!"\"" ~ ANY))* ~ "\""
+}
+
+Template = ${
+    "`" ~ ("\\`" | !"`" ~ ANY)* ~ "`"
+}
+
+Str = ${
+  
+  | Raw
+  | Escape
+  | Template
+}
+
+Lambda = {
+    "\\" ~ Args ~ "=" ~ Expr
+}
+
+Keyword = {
+    | "if"
+    | "else"
+    | "then"
+    | "match"
+    | "case"
+    | "do"
+    | "end"
+}
+
+Ident = ${
+    | !Keyword ~ 
+      ('a'..'z' | 'A'..'Z' | "_" | "$") ~ 
+      ('a'..'z' | 'A'..'Z' | '0'..'9' | "_" | "$" | ".")*
+    | Ignore
+}
+
+Ignore = {"_"}
+
+Op = ${
+  | "+"
+  | "-"
+  | "*"
+  | "/"
+  | "%"
+  | "^"
+  | "=="
+  | "!="
+  | "<="
+  | ">"
+  | ">="
+  | "&&"
+  | "||"
+}
+
+Obj = {
+    "{" ~ (Pair ~ ("," ~ Pair)*)? ~ ","? ~ "}"
+}
+
+ObjUnfold = {
+    "..." ~ DVExpr
+}
+
+Pair = {
+    | Ident ~ "=" ~ DVExpr
+    | Ident ~ Args ~ "=" ~ DVLine
+    | ObjUnfold
+}
+
+Array = {
+    "[" ~ (TAExpr ~ ("," ~ TAExpr)*)? ~ ","? ~ "]"
+}
+
+TAExpr = {
+    | AExpr
+    | "..." ~ AExpr
+}
+
+// 语法相关
+Block = {
+    "do" ~ Line* ~ "end"
+}
+/*
+    {
+    ...
+    }
+*/
+
+Set = {
+    Ident ~ ("," ~ Ident)* ~ Assign ~ Line
+}
+/*
+    x = 1, y = 2, z = 3
+    a,b = e
+*/
+
+Func = {
+    Ident ~ Args ~ "=" ~ Line
+}
+/* fn(a,b)=e */
+
+Value = {
+  
+  | ArrOp
+  | NonArrOp
+}
+
+ArrOp = {
+  
+  | GetItem
+  | Slice
+}
+
+GetItem = {
+    // v[i1,i2,...]
+    NonArrOp ~ "[" ~ (Expr ~ ("," ~ Expr)*) ~ ","? ~ "]"
+}
+
+Slice = {
+    // v[i1:i2]
+    NonArrOp ~ "[" ~ (Expr? ~ ":" ~ Expr?) ~ "]"
+}
+
+NonArrOp = {
+  | "(" ~ BLine? ~ ")"
+  | Number
+  | Str
+  | Ident
+  | Lambda
+  | Obj
+  | Array
+  | Block
+}
+
+// 以上无需修改
+
+Line = {
+    | Set
+    | Func
+    | If
+    | Expr ~ (Op ~ Expr)*
+}
+
+If = {
+    "if" ~ Line ~ "then" ~ Line ~ "else" ~ Line
+}
+
+Expr = {
+  | Call
+  | Value
+  | Neg ~ Expr
+}
+
+Call = ${
+    (Value ~ (InLineSplit+ ~ Value | Lian)+) ~ InLineSplit* ~ &(NEWLINE | EOI)
+}
+
+Lian = {Array|Obj|Lambda}
+
+InLineSplit = _{
+    | " "
+    | "\t"
+}
+
+AnySplit = _{
+    | " "
+    | "\t"
+    | "\n"
+    | "\r"
+    | "\r\n"
+    | COMMENT
+}
+
+Neg = {
+    "-"
+}
+
+//for Braket
+BIf = {
+    "if" ~ Line ~ "then" ~ Line ~ "else" ~ BLine ~
+    &")"
+}
+
+BLine = {
+    | Set
+    | Func
+    | BIf
+    | BExpr ~ (Op ~ BExpr)*
+}
+
+BExpr = {
+    | BCall
+    | Value
+    | Neg ~ BExpr
+}
+
+BCall = ${
+    (Value ~ (AnySplit+ ~ Value | Lian)+) ~ AnySplit* ~ &")"
+}
+
+//for Array
+ALine = {
+    | Set
+    | Func
+    | AIf
+    | AExpr ~ (Op ~ AExpr)*
+}
+
+AIf = {
+    "if" ~ Line ~ "then" ~ Line ~ "else" ~ ALine ~
+    &("]"|",")
+}
+
+AExpr = {
+    | ACall
+    | Value
+    | Neg ~ AExpr
+}
+
+ACall = ${
+    (Value ~ (AnySplit+ ~ Value | Lian)+) ~ AnySplit* ~ &("]"|",")
+}
+
+//for Dict Value
+DVLine = {
+    | Set
+    | Func
+    | DVIf
+    | DVExpr ~ (Op ~ DVExpr)*
+}
+
+DVIf = {
+    "if" ~ Line ~ "then" ~ Line ~ "else" ~ DVLine ~
+    &("}"|",")
+}
+
+DVExpr = {
+    | DVCall
+    | Value
+    | Neg ~ DVExpr
+}
+
+DVCall = ${
+    (Value ~ (AnySplit+ ~ Value | Lian)+) ~ AnySplit* ~ &("}"|",")
+}

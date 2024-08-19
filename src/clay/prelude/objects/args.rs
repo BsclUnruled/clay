@@ -1,9 +1,9 @@
-use crate::clay::vm::{env, runtime::Vm, CtxType, Token};
+use crate::clay::{var::Var, vm::{env, runtime::Vm, CtxType}};
 
 #[derive(Clone)]
 pub struct Args<'l> {
     vm:Vm,
-    args:&'l[Token],
+    args:&'l[Var],
     ctx:CtxType,
 }
 
