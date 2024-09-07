@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap};
 
-use crate::clay::{var::{Var, Virtual}, vm::signal::Abort};
+use crate::clay::{var::{Var, Virtual}, vm::{env::Env, promise::Promise, signal::Abort}};
 
 pub struct Module {
     name: Option<String>,
@@ -39,17 +39,17 @@ impl Virtual for Module {
         self
     }
 
-    fn def(&self,_:crate::clay::vm::runtime::Vm , name: &str, value:&Var)->crate::clay::vm::signal::Signal {
+    fn def(&self,_:&Env, name: &str, value:&Var)->Promise {
         if self.exports.borrow().contains_key(name) {
             return 
                 Err(
                     Abort::ThrowString(
                         format!("{} is already defined in module {}", name, self.name())
                     )
-                );
+                ).into();
         }else{
-            self.exports.borrow_mut().insert(name.to_string(), value.clone());
-            Ok(value.clone())
+            self.exports.borrow_mut().insert(name.to_string(), value.to_owned());
+            Ok(value.clone()).into()
         }
     }
 
@@ -59,20 +59,20 @@ impl Virtual for Module {
         }
     }
 
-    fn get(&self,vm:crate::clay::vm::runtime::Vm, name: &str)->crate::clay::vm::signal::Signal {
+    fn get(&self,env:&Env,name: &str)->Promise {
         if let Some(var) = self.exports.borrow().get(name) {
-            Ok(var.clone())
+            Ok(var.clone()).into()
         }else{
-            vm.undef()
+            env.vm().undef().into()
         }
     }
 
-    fn has(&self,_:crate::clay::vm::runtime::Vm, name: &str)->bool {
+    fn has(&self,_:&Env, name: &str)->bool {
         self.exports.borrow().contains_key(name)
     }
 
-    fn set(&self,_:crate::clay::vm::runtime::Vm, name: &str, value:&Var)->crate::clay::vm::signal::Signal {
+    fn set(&self,_:&Env, name: &str, value:&Var)->Promise{
         self.exports.borrow_mut().insert(name.into(), value.clone());
-        Ok(value.clone())
+        Ok(value.clone()).into()
     }
 }

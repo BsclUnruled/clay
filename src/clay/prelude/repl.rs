@@ -1,23 +1,19 @@
-use crate::clay::prelude::objects::func::{Func, Script};
-use crate::clay::var::ToVar;
-use crate::clay::vm::env::void_ctx;
+use crate::clay::var::Var;
+use crate::clay::vm::env::Env;
 use crate::clay::vm::signal::Signal;
-use crate::clay::vm::Token;
 use crate::clay::{parse, vm};
 use std::io::Write;
 use std::process::exit;
-
-use super::objects::args::Args;
 
 pub fn repl() -> Signal {
     println!("clay,启动\n输入.exit退出");
     let vm = vm::runtime::Vm::new()?;
 
-    inner_repl(Args::new(vm, &[] as &[_], void_ctx(vm)))
+    inner_repl(&Env::new(vm,vm.get_context().clone()), &[])
 }
 
-pub fn inner_repl(all: Args) -> Signal {
-    let _vm = *all.vm();
+pub fn inner_repl(env:&Env, _:&[Var]) -> Signal {
+    let _vm = *env.vm();
 
     {
         let mut _begin = 0;
@@ -68,7 +64,7 @@ pub fn inner_repl(all: Args) -> Signal {
                 end += line;
             }
 
-            let hc = match parse::Parser::new(&input).parse() {
+            let hc = match parse::parse(&input) {
                 Ok(hc) => hc,
                 Err(e) => {
                     eprintln!("parse error: {}", e);
@@ -81,38 +77,13 @@ pub fn inner_repl(all: Args) -> Signal {
                 println!("\n{:#?}\n", hc);
             }
 
-            let func = {
-                let foo;
-                let codes:&[Token] = match hc {
-                    Token::Large(codes) =>{
-                        foo = codes;
-                        &foo
-                    },
-                    _ => &[hc],
-                };
-                let script = Script::new(
-                    &Some(if _begin == end {
-                        format!("line {}", _begin)
-                    } else {
-                        format!("line {} ~ {}", _begin, end)
-                    }),
-                    &[],
-                    _vm.get_context(),
-                    codes,
-                );
-
-                Func::Script(script).to_var(_vm)
-            };
-
-            match _vm.run_code(func) {
+            match _vm.run_code(hc) {
                 Ok(v) => {
                     println!(
                         "{}\n",
-                        v.unbox()?
-                            .get(_vm, "toStr")?
-                            .unbox()?
-                            .call(Args::new(_vm, &[], _vm.get_context().clone()))?
-                            .unbox()?
+                        v.get(env, "toStr")
+                            .call(env,&[])
+                            .sync()?
                             .cast::<String>()?
                     );
                 }

@@ -1,32 +1,23 @@
-use crate::clay::prelude::objects::args::Args;
-use crate::clay:: vm::signal::Signal;
-use crate::clay::vm::{Eval, Token};
+use crate::clay::var::Var;
+use crate::clay::vm::env::Env;
+use crate::clay::vm::promise::Promise;
+use crate::clay:: vm::signal::Abort;
 
-pub fn add(all:Args)->Signal{
-    let vm = *all.vm();
-    let args = all.args();
+pub fn add(env:&Env,args:&[Var])->Promise{
+    let x_v = match args.get(0){
+        Some(x) => x,
+        None => return Err(Abort::ThrowString(
+            format!("add: missing argument 0")
+        )).into()
+    };
 
-    let mut hc_vec = Vec::with_capacity(args.len());
+    let y_v = match args.get(1){
+        Some(y) => y,
+        None => return Err(Abort::ThrowString(
+            format!("add: missing argument 1")
+        )).into()
+    };
 
-    for arg in args {
-        let hc = arg.eval(all.clone())?;
-        hc_vec.push(hc);
-    }
-
-    let mut sum = vm.undef()?;
-    let mut flag = true;
-
-    for hc in hc_vec {
-        if flag {
-            sum = hc;
-            flag = false;
-        }else{
-            sum = sum.unbox()?
-                .get(vm, "#add")?
-                .unbox()?
-                .call(Args::new(vm, &[Token::The(hc)],all.ctx().clone()))?
-        }
-    }
-
-    Ok(sum)
+    let add = x_v.get(env,"#add");
+    add.call(env, &[y_v.clone()])
 }

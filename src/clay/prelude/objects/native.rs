@@ -1,9 +1,7 @@
-use crate::clay::vm::signal::Signal;
+use crate::clay::{var::Var, vm::{env::Env, promise::Promise}};
 use std::fmt::{Debug, Display};
 
-use super::args::Args;
-
-pub type Function = fn(Args) -> Signal;
+pub type Function = Box<dyn Fn(&Env,&[Var])-> Promise>;
 
 pub struct Native{
     func:Function,
@@ -36,8 +34,8 @@ impl Native {
         }
     }
 
-    pub fn call(&self, args:Args) -> Signal {
-        (self.func)(args)
+    pub fn call(&self,env:&Env,args:&[Var]) -> Promise {
+        (self.func)(env,args)
     }
 
     pub fn new(func:Function,name:Option<String>) -> Self {

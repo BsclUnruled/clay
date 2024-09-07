@@ -1,4 +1,4 @@
-use std::{fs, /*io::Write*/};
+use std::fs /*io::Write*/;
 
 use clay::{
     parse::{self, /*clay::Rule*/}, prelude::repl, var::Number, vm::signal::{Abort, ErrSignal}
@@ -34,7 +34,7 @@ fn clay_main() -> ErrSignal<()> {
         }
     };
 
-    let hc = match parse::Parser::new(code).parse() {
+    let hc = match parse::parse(code) {
         Ok(hc) => hc,
         Err(e) => {
             eprintln!("parse error: {}", e);
@@ -68,7 +68,7 @@ fn clay_main() -> ErrSignal<()> {
             println!("\n开始执行\n")
         }
 
-        println!("{:#?}", vm.undef()?.unbox()?.cast::<Number>()?);
+        println!("{:#?}", vm.undef()?.cast::<Number>()?);
 
         println!(
             "\n",

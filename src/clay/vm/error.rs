@@ -4,8 +4,8 @@ use crate::clay::var::{ToVar, Virtual};
 
 use super::{runtime::Vm, Abort};
 
-pub fn throw(vm:Vm, message: &str) -> Abort {
-    Abort::Throw(VmError::new(message, None).to_var(vm))
+pub fn throw(vm:&Vm, message: &str) -> Abort {
+    Abort::Throw(VmError::new(message, None).to_var(*vm))
 }
 
 pub struct VmError {
@@ -73,37 +73,37 @@ impl From<&str> for VmError {
 //     }
 // }
 
-pub fn set_unsetable(vm:Vm,type_name: &str, property_name: &str)->Abort{
+pub fn set_unsetable(vm:&Vm,type_name: &str, property_name: &str)->Abort{
     throw(vm,&format!(
         "set unsetable\n\t\t尝试设置{}的属性{}",
         property_name, type_name
     ))
 }
 
-pub fn get_ungetable(vm:Vm,type_name: &str, property_name: &str)->Abort{
+pub fn get_ungetable(vm:&Vm,type_name: &str, property_name: &str)->Abort{
     throw(vm,&format!(
         "get ungetable\n\t\t尝试获取{}的属性{}",
         property_name, type_name
     ))
 }
 
-pub fn set_undef(vm:Vm,property_name: &str)->Abort{
+pub fn set_undef(vm:&Vm,property_name: &str)->Abort{
     set_unsetable(vm,"undef", property_name)
 }
 
-pub fn use_dropped(vm:Vm)->Abort{
+pub fn use_dropped(vm:&Vm)->Abort{
     throw(vm,&format!("use dropped\n\t\t变量已回收"))
 }
 
-pub fn async_scheduler_error(vm:Vm)->Abort{
+pub fn async_scheduler_error(vm:&Vm)->Abort{
     throw(vm,"schedule failed\n\t\tclay异步函数调度失败")
 }
 
-pub fn not_a_func(vm:Vm)->Abort{
+pub fn not_a_func(vm:&Vm)->Abort{
     throw(vm,&format!("not a function\n\t\t不是函数"))
 }
 
-pub fn def_undefable(vm:Vm,type_name: &str, property_name: &str)->Abort{
+pub fn def_undefable(vm:&Vm,type_name: &str, property_name: &str)->Abort{
     throw(vm,&format!(
         "def undefable\n\t\t尝试在{}上定义『{}』属性",
         property_name, type_name

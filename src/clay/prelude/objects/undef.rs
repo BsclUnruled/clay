@@ -1,7 +1,6 @@
 use std::fmt::Display;
-use crate::clay::var::{ToVar, Virtual};
-use super::args::Args;
-use crate::clay::{var::Var, vm::{error, runtime::Vm, signal::Signal}};
+use crate::clay::{var::{ToVar, Virtual}, vm::{env::Env, promise::Promise}};
+use crate::clay::{var::Var, vm::{error, runtime::Vm}};
 
 #[derive(Debug)]
 pub struct Undef();
@@ -16,21 +15,14 @@ impl Virtual for Undef {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
-    fn call(&self,all:Args)->Signal
+    fn call(&self,env:&Env,_:&[Var])->Promise
     where Self:Sized + 'static{
         Err(
-            error::not_a_func(*all.vm())
-        )
+            error::not_a_func(env.vm())
+        ).into()
     }
 }
 
 pub fn new(vm:Vm)->Var{
     Undef().to_var(vm)
 }
-
-// pub fn test() {
-//     let ud = undef();
-//     let ud2 = ud.uncross();
-//     let ud3 = ud2.cast::<Undef>();
-//     println!("{:?}", ud3);
-// }

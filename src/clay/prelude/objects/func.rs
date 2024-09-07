@@ -1,25 +1,25 @@
 use std::iter;
-use crate::clay::{var::Virtual, vm::{env, signal::{Abort, Signal}, CtxType, Eval, Token}};
-use super::{args::Args, native::Function};
+use crate::clay::{var::{Var, Virtual}, vm::{ctx, env::Env, promise::{resolve, Promise}, CtxType, Eval, ToRun}};
+use super::native::Function;
 use crate::clay::vm::runtime::Exit;
 
 pub struct Script{
     pub(super) name:String,
     pub(super) args_names:Vec<String>,
-    pub(super) code:Vec<Token>,
+    pub(super) code:Vec<ToRun>,
     pub(super) ctx:CtxType
 }
 
 impl Script{
-    pub fn cons_ctx(&self,all:&Args)->CtxType{
-        let vm = *all.vm();
+    pub fn cons_ctx(&self,env:&Env,args:&[Var])->CtxType{
+        let vm = *env.vm();
 
         let undef = match vm.undef(){
-            Ok(undef)=>Token::The(undef.clone()),
+            Ok(undef)=>undef.clone(),
             Err(e)=>vm.exit(e)
         };
 
-        let iter = all.args().iter().chain(
+        let iter = args.iter().chain(
             iter::from_fn(||{
                 Some(&undef)
             })
@@ -30,52 +30,33 @@ impl Script{
             .iter()
             .zip(iter)
             .map(|(name,arg)|{
-                (name.to_owned(),arg.eval(all.clone()))
-            })
-            .map(|(name,signal)|{
-                let hc = match signal{
-                    Ok(var)=>var,
-                    Err(e)=>vm.exit(e)
-                };
-                (name,hc)
+                (name.to_owned(),arg.clone())
             })
             .collect();
 
-        env::from_map(vm,map,Some(self.ctx.clone()))
+        ctx::from_map(vm,map,Some(self.ctx.clone()))
     }
 
-    pub fn call(&self,all:Args)->Signal{
-        let vm = all.vm();
-        let args = all.args();
-
-        let ctx = env::default(
-            *vm,
-            self.ctx.clone()
-        );
+    pub fn call(&self,env:&Env,args:&[Var])->Promise{
+        let vm = env.vm();
 
         {
             for index in 0..(
                 if self.args_names.len() > args.len(){args.len()}else{self.args_names.len()}
             ){
-                let _ = all.ctx().unbox()?.def(*vm, match &self.args_names.get(index){
+                let _ = env.ctx().def(env, match &self.args_names.get(index){
                     Some(name)=>name,
-                    None=>return Err(Abort::Throw(vm.undef()?))
+                    None=>env.vm().exit(&format!("Invalid argument index: {}",index) as &str)
                 },&match args.get(index){
-                    Some(arg)=>arg.eval(
-                        Args::from(
-                            (*vm,&[] as &[Token],all.ctx().clone())
-                        )
-                    )?,
-                    None=>return Err(Abort::Throw(vm.undef()?))
+                    Some(arg)=>arg.clone(),
+                    None=>env.vm().exit(&format!("Invalid argument index: {}",index) as &str)
                 });
             }         
-            let mut result = vm.undef().into();
+            let mut result = vm.undef();
             for code in &self.code{
-                result = code.eval(Args::from(
-                    (*vm,&[] as &[Token],ctx.clone())
-                ));
+                result = code.eval(env,&[]);
             }
-            result
+            resolve(result)
         }
     }
 
@@ -83,7 +64,7 @@ impl Script{
         name:&Option<String>,
         args_names:&[String],
         ctx:&CtxType,
-        code:&[Token]
+        code:&[ToRun]
     )->Self{
         let addr:() = ();
         Self{
@@ -130,10 +111,10 @@ impl Virtual for Func{
         self
     }
 
-    fn call(&self,all:Args)->Signal {
+    fn call(&self,env:&Env,args:&[Var])->Promise{
         match self {
-            Self::Script(script)=>script.call(all),
-            Self::Native(native)=>native.call(all)
+            Self::Script(script)=>script.call(env,args),
+            Self::Native(native)=>native.call(env,args)
         }
     }
 }

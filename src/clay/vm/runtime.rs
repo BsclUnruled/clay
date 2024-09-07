@@ -1,13 +1,17 @@
 // use tokio::{sync::mpsc::{channel, Receiver, Sender}, task::{yield_now, JoinHandle}};
 
+use super::{
+    ctx, env::Env, heap::Heap, signal::{Abort, ErrSignal, Signal}, CtxType, ToRun
+};
 use crate::clay::{
-    prelude::objects::undef, var::{Var, VarBox,}, Cell
+    prelude::objects::undef,
+    var::Var,
+    Cell,
 };
 use std::{
-    collections::LinkedList, ops::Deref, process::exit, rc::{Rc, Weak}
-};
-use super::{
-    env, signal::{Abort, ErrSignal, Signal}, CtxType
+    collections::LinkedList,
+    ops::Deref,
+    process::exit,
 };
 
 pub struct Runtime {
@@ -15,12 +19,11 @@ pub struct Runtime {
     id_stack: LinkedList<usize>,
     id_counter: usize,
 
-    heap: LinkedList<Rc<VarBox>>,
+    heap: Heap,
 
     global_context: Option<CtxType>,
 
     undef: Option<Var>,
-
     // ctrl:Control,
     // lock:Lock,
 
@@ -30,71 +33,23 @@ pub struct Runtime {
 unsafe impl Send for Runtime {}
 unsafe impl Sync for Runtime {}
 
-pub trait Exit<T>{
-    fn exit(&self,msg:T)->!;
+pub trait Exit<T> {
+    fn exit(&self, msg: T) -> !;
 }
 
-impl Exit<Abort> for Vm{
-    fn exit(&self,msg:Abort)->! {
-        eprint!("{}",msg);
+impl Exit<Abort> for Vm {
+    fn exit(&self, msg: Abort) -> ! {
+        eprint!("{}", msg);
         exit(1)
     }
 }
 
-impl Exit<&str> for Vm{
-    fn exit(&self,msg:&str)->! {
-        eprint!("{}",msg);
+impl Exit<&str> for Vm {
+    fn exit(&self, msg: &str) -> ! {
+        eprint!("{}", msg);
         exit(1)
     }
 }
-
-// pub struct InnerLock{
-//     start_receiver:Receiver<()>,
-//     finish_sender:Sender<()>
-// }
-
-// #[derive(Clone)]
-// pub struct Lock{
-//     inner:Rc<Cell<InnerLock>>
-// }
-
-// impl Deref for Lock {
-//     type Target = InnerLock;
-//     fn deref(&self) -> &Self::Target {
-//         self.inner.borrow()
-//     }
-// }
-
-// impl DerefMut for Lock {
-//     fn deref_mut(&mut self) -> &mut Self::Target {
-//         self.inner.borrow_mut()
-//     }
-// }
-
-// impl Virtual for Lock {
-//     fn as_any(&self) -> &dyn std::any::Any {
-//         self
-//     }
-// }
-
-// pub struct Control{
-//     start_sender:Sender<()>,
-//     finish_receiver:Receiver<()>
-// }
-
-// pub fn make_lock()->(Control,Lock){
-//     let (start_sender,start_receiver) = channel(1);
-//     let (finish_sender,finish_receiver) = channel(1);
-//     (
-//         Control{start_sender,finish_receiver},
-//         Lock{
-//             inner:Rc::new(Cell::new(InnerLock{
-//                 start_receiver,
-//                 finish_sender
-//             }))
-//         }
-//     )
-// }
 
 #[derive(Clone, Copy)]
 pub struct Vm(&'static Cell<Runtime>);
@@ -129,7 +84,7 @@ impl Vm {
     //     });
     //     self.async_runtime().block_on(async{
     //         vm.borrow_mut().lock.start_receiver.recv().await.unwrap();
-    //         let result = 
+    //         let result =
     //             code.unbox()?.call(Args::new(
     //                 vm,
     //                 &[]
@@ -143,7 +98,7 @@ impl Vm {
     //     let vm = *self;
     //     self.async_runtime().spawn(async move{
     //         vm.borrow_mut().lock.start_receiver.recv().await.unwrap();
-    //         let result = 
+    //         let result =
     //             code.unbox()?.call(Args::new(
     //                 vm,
     //                 &[]
@@ -153,15 +108,13 @@ impl Vm {
     //     })
     // }
 
-    pub fn get_context(&self) ->&CtxType {
-        match self.borrow().global_context{
-            None =>{
-                self.borrow_mut().global_context = Some(
-                    env::default(*self,env::void_ctx(*self))
-                );
+    pub fn get_context(&self) -> &CtxType {
+        match self.borrow().global_context {
+            None => {
+                self.borrow_mut().global_context = Some(ctx::default(*self, ctx::void_ctx(*self)));
                 self.get_context()
             }
-            Some(ref ctx) => ctx
+            Some(ref ctx) => ctx,
         }
     }
     pub fn get_id(&self) -> usize {
@@ -176,35 +129,28 @@ impl Vm {
         }
     }
 
-    pub fn back_id(&self, id: usize) {
-        self.borrow_mut().id_stack.push_back(id);
-    }
-
-    pub fn push_heap(&self, var: VarBox) -> Weak<VarBox> {
-        let strong = Rc::new(var);
-        let weak = Rc::downgrade(&strong);
-        self.borrow_mut().heap.push_back(strong);
-        weak
-    }
-
     pub fn undef(&self) -> Signal {
-        Ok(self.0.borrow().undef.as_ref().expect("undef被释放了").clone())
+        Ok(self
+            .0
+            .borrow()
+            .undef
+            .as_ref()
+            .expect("undef被释放了")
+            .clone())
     }
 
     pub fn new() -> ErrSignal<Vm> {
-
         // let (ctrl,lock) = make_lock();
 
         let hc = Runtime {
             id_counter: 1,
             id_stack: LinkedList::new(),
 
-            heap: LinkedList::new(),
+            heap: Heap::new(),
 
-            global_context:None,
+            global_context: None,
 
             undef: None,
-
             // ctrl,
             // lock,
         };
@@ -214,26 +160,30 @@ impl Vm {
         Self::init(hc)
     }
 
-    pub fn run_code(&self,_func:Var)->Signal{
-        Err(Abort::ThrowString("not implemented yet(Vm::run_code)".to_owned()))
+    pub fn run_code(&self, _func: ToRun) -> Signal {
+        Err(Abort::ThrowString(
+            "not implemented yet(Vm::run_code)".to_owned(),
+        ))
     }
 
     fn init(vm: Vm) -> ErrSignal<Vm> {
-        
-                
+        let env = Env::new(vm, vm.get_context().clone());
+
         vm.0.borrow_mut().undef = Some(
-            vm.get_context().unbox()?.def(vm,"undef", &undef::new(vm))
-                .expect("undef载入失败")
+            vm.get_context()
+                .def(&env, "undef", &undef::new(vm))
+                .sync()
+                .expect("undef载入失败"),
         );
 
         Ok(vm)
     }
 
-    pub fn mut_heap(&self) -> &mut LinkedList<Rc<VarBox>> {
+    pub fn mut_heap(&self) -> &mut Heap {
         &mut self.0.borrow_mut().heap
     }
 
-    pub fn heap(&self) -> &LinkedList<Rc<VarBox>> {
+    pub fn heap(&self) -> &Heap {
         &self.borrow().heap
     }
 }

@@ -1,6 +1,5 @@
-use crate::clay::vm::signal::{Abort, ErrSignal};
+use crate::clay::vm::{env::Env, signal::{Abort, ErrSignal}};
 
-use super::args::Args;
 pub fn escape(s: &str) -> Result<String, String> {
     let mut iter = s.chars();
     let mut result = String::with_capacity(s.len());
@@ -31,7 +30,7 @@ pub fn escape(s: &str) -> Result<String, String> {
     result.shrink_to_fit();
     Ok(result)
 }
-pub fn template(s: &str, all: Args) -> ErrSignal<String> {
+pub fn template(s: &str,env:&Env) -> ErrSignal<String> {
     let mut iter = s.chars();
     let mut result = String::with_capacity(s.len());
 
@@ -52,13 +51,11 @@ pub fn template(s: &str, all: Args) -> ErrSignal<String> {
                         }
                     }
                     to_eval.shrink_to_fit();
-                    let hc = all.ctx().unbox()?.get(*all.vm(), &to_eval)?;
+                    let hc = env.ctx().get(env, &to_eval).sync()?;
 
-                    let b = hc.unbox()?
-                        .get(*all.vm(), "toStr")?
-                        .unbox()?
-                        .call(Args::new(*all.vm(),&[],all.ctx().clone()))?
-                        .unbox()?;
+                    let b = hc.get(env, "toStr")
+                        .call(env,&[])
+                        .sync()?;
 
                     let r: &String = b.cast()?;
                     result.push_str(r);
