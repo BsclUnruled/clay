@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use crate::clay::{var::{ToVar, Virtual}, vm::{env::Env, promise::Promise}};
+use crate::clay::{var::{ToVar, Meta}, vm::{env::Env, promise::Promise}};
 use crate::clay::{var::Var, vm::{error, runtime::Vm}};
 
 #[derive(Debug)]
@@ -11,7 +11,7 @@ impl Display for Undef {
     }
 }
 
-impl Virtual for Undef {
+impl Meta for Undef {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use crate::clay::var::Virtual;
+use crate::clay::var::Meta;
 use crate::clay::var::Var;
 
 
@@ -23,7 +23,7 @@ impl Array{
     }
 }
 
-impl Virtual for Array{
+impl Meta for Array{
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

@@ -10,6 +10,6 @@ use super::vm::{Ast, ToRun};
 pub struct ClayParser;
 
 pub fn parse(input: &str)->Result<ToRun,pest::error::Error<Rule>>{
-    let pairs = ClayParser::parse(Rule::Global, input);
+    let pairs = ClayParser::parse(Rule::script, input);
     pairs.map(|_|Ast::None)
 }

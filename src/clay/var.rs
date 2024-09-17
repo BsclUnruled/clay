@@ -9,7 +9,7 @@ use super::vm::runtime::Vm;
 use super::vm::signal::ErrSignal;
 pub use std::ops::ControlFlow::{Continue as Go,Break as Stop};
 
-pub trait Virtual:Any + 'static {
+pub trait Meta:Any + 'static {
     fn callable(&self)->bool{false}
 
     fn gc_for_each(&self,_:fn(&Var)){}
@@ -51,7 +51,7 @@ pub trait ToVar{
     fn to_var(self:Self,vm:Vm) -> Var;
 }
 
-impl<T:Virtual> ToVar for T{
+impl<T:Meta> ToVar for T{
     fn to_var(self:Self,vm:Vm) -> Var where Self: Sized + 'static{
         Var::new(self,vm)
     }
@@ -59,17 +59,17 @@ impl<T:Virtual> ToVar for T{
 
 pub type Number = f64;
 
-impl Virtual for Number{
+impl Meta for Number{
     fn as_any(&self) -> &dyn Any {
         self
     }
 }
-impl Virtual for String{
+impl Meta for String{
     fn as_any(&self) -> &dyn Any {
         self
     }
 }
-impl Virtual for bool{
+impl Meta for bool{
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -78,17 +78,17 @@ impl Virtual for bool{
 #[derive(Clone)]
 pub struct VarPtr {
     pub(crate) mark: Mark,
-    pub(crate) value: *mut dyn Virtual,
+    pub(crate) value: *mut dyn Meta,
 }
 
-impl AsRef<dyn Virtual> for VarPtr {
-    fn as_ref(&self) -> &dyn Virtual {
+impl AsRef<dyn Meta> for VarPtr {
+    fn as_ref(&self) -> &dyn Meta {
         unsafe{&*self.value}
     }
 }
 
 impl VarPtr {
-    pub fn new(heap:&mut Heap, value:impl Virtual + 'static) ->*mut Self {
+    pub fn new(heap:&mut Heap, value:impl Meta + 'static) ->*mut Self {
         heap.alloc(Self { mark: Mark::New, value: Box::into_raw(Box::new(value)) })
     }
     
@@ -99,7 +99,7 @@ impl VarPtr {
         self.mark = mark;
     }
 
-    pub fn cast<T: Virtual>(&self) -> ErrSignal<&T>{
+    pub fn cast<T: Meta>(&self) -> ErrSignal<&T>{
         let re = self.as_ref();
 
         match re.as_any().downcast_ref::<T>(){
@@ -109,7 +109,7 @@ impl VarPtr {
     }
 
     #[cfg(debug_assertions)]
-    pub fn is<T:Virtual>(&self)->bool{
+    pub fn is<T:Meta>(&self)->bool{
         use std::panic::panic_any;
 
         match unsafe {self.value.as_ref()}{
@@ -120,7 +120,7 @@ impl VarPtr {
 }
 
 impl Deref for VarPtr {
-    type Target = dyn Virtual;
+    type Target = dyn Meta;
     fn deref(&self) -> &Self::Target {
         unsafe{&*self.value}
     }
@@ -148,7 +148,7 @@ impl Deref for Var {
 }
 
 impl Var {
-    pub fn new(value:impl Virtual + 'static,vm:Vm) -> Self {
+    pub fn new(value:impl Meta + 'static,vm:Vm) -> Self {
         Self {
             ptr: VarPtr::new(vm.mut_heap(), value),
         }

@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::{Debug, Display}};
 
-use crate::clay::var::{ToVar, Virtual};
+use crate::clay::var::{ToVar, Meta};
 
 use super::{runtime::Vm, Abort};
 
@@ -13,7 +13,7 @@ pub struct VmError {
     source: Option<Box<dyn Error>>,
 }
 
-impl Virtual for VmError {
+impl Meta for VmError {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

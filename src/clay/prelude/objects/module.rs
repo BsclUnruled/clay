@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap};
 
-use crate::clay::{var::{Var, Virtual}, vm::{env::Env, promise::Promise, signal::Abort}};
+use crate::clay::{var::{Var, Meta}, vm::{env::Env, promise::Promise, signal::Abort}};
 
 pub struct Module {
     name: Option<String>,
@@ -34,7 +34,7 @@ impl Module{
     }
 }
 
-impl Virtual for Module {
+impl Meta for Module {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

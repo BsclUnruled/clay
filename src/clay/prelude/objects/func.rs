@@ -1,5 +1,5 @@
 use std::iter;
-use crate::clay::{var::{Var, Virtual}, vm::{ctx, env::Env, promise::{resolve, Promise}, CtxType, Eval, ToRun}};
+use crate::clay::{var::{Var, Meta}, vm::{ctx, env::Env, promise::{resolve, Promise}, CtxType, Eval, ToRun}};
 use super::native::Function;
 use crate::clay::vm::runtime::Exit;
 
@@ -106,7 +106,7 @@ impl From<(Function,String)> for Func{
     }
 }
 
-impl Virtual for Func{
+impl Meta for Func{
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

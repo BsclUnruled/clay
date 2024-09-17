@@ -1,5 +1,5 @@
 use crate::clay::var::ToVar;
-use crate::clay::var::Virtual;
+use crate::clay::var::Meta;
 use crate::clay::Cell;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -39,7 +39,7 @@ pub struct Ctx(pub(crate)Cell<HashMap<String, Var>>,pub(crate) CtxType);
 //     }
 // }
 
-impl Virtual for Ctx{
+impl Meta for Ctx{
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -102,7 +102,7 @@ impl Display for Void{
     }
 }
 
-impl Virtual for Void{
+impl Meta for Void{
     fn gc_for_each(&self,_:fn(&Var)) {}
 
     fn as_any(&self) -> &dyn std::any::Any {
