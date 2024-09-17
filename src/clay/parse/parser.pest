@@ -1,34 +1,42 @@
-script = {SOI ~ line* ~ EOI}
+script = { SOI ~ (line ~ comma?)* ~ EOI }
 
-
-//tools
+// tools
 COMMENT = _{
-    | ignore_idents ~ "::" ~ type_expr 
-    | "--" ~ (!NEWLINE ~ ANY)* ~ NEWLINE
+  | type_hint
+  | "--" ~ (!NEWLINE ~ ANY)* ~ NEWLINE
+}
+
+type_hint = _{
+    ignore_idents ~ ans ~ "::" ~ ans ~ 
+    ((limit ~ ans ~ (comma ~ ans ~ limit ~ ans)* ~ ans ~ comma?)? ~ ans ~ arrow)? ~ ans ~ 
+    type_expr
+}
+
+limit = _{
+    ignore_ident ~ (ans ~ (">" | "<" | ">=" | "<=" | "==" | "!=" | "=") ~ ans ~ type_expr)?
+}
+
+ans = _{
+    | WHITESPACE*
 }
 
 NEWLINE = _{
-    | "\r\n"
-    | "\n"
-    | "\r"
+  | "\r\n"
+  | "\n"
+  | "\r"
 }
 
 WHITESPACE = _{
-    | " "
-    | "\t"
-    | "\r"
-    | "\n"
+  
+  | " "
+  | "\t"
+  | "\r"
+  | "\n"
 }
 
-//top-level
+// top-level
 line = {
-    ( func
-    | set
-    | block
-    | loop
-    | expr) ~ 
-    (guard | try | next)? ~ 
-    comma?
+    (func | set | block | loop | expr) ~ (guard | try | next)?
 }
 
 set = {
@@ -39,31 +47,23 @@ func = {
     deco? ~ (ignore | idents)? ~ args ~ func_assign ~ line
 }
 
-func_assign = _{"="}
+func_assign = _{ "=" }
 
 block = {
-    ll ~ line* ~ lr
+    ll ~ (line ~ comma?)* ~ lr
 }
 
 loop = {
     unscope ~ expr ~ arrow ~ line
 }
 
-expr = {
-    (just_ignore
-    | ident
-    | value 
-    | braket) ~
-    ( acc
-    | none_acc
-    | index
-    | slice
-    | call_braket)*
+base_expr = {
+  (just_ignore | ident | op_to_func | value | braket)
+   ~ (acc | none_acc | index | slice | call_braket)*
 }
 
 guard = {
-    (guard_op ~ !ignore ~ expr ~ arrow ~ line)* ~
-    guard_op ~ ignore ~ arrow ~ line
+    (guard_op ~ !ignore ~ expr ~ arrow ~ line)* ~ guard_op ~ ignore ~ arrow ~ line
 }
 
 try = {
@@ -74,46 +74,48 @@ next = {
     next_op ~ line
 }
 
-//零散的东西
+// 零散的东西
 
-//destruct
+// destruct
 destruct = {
-    idents ~ (comma ~ idents)* ~ (comma ~ uident) ~ comma?
+    idents ~ (uidents | idents ~ (comma ~ idents)* ~ (comma ~ uidents)?)? ~ comma? ~ comma?
 }
 
-//括号们
+// 括号们
 braket = {
-    sl ~ line? ~ sr
+    sl ~ line ~ sr
 }
 
 call_braket = {
-    sl ~ (expr ~ (comma ~ expr)*)? ~ comma? ~ sr
+    sl ~ (line ~ (comma ~ line)*)? ~ comma? ~ sr
 }
 
 args = {
-    sl ~ (ident ~ (comma ~ ident)* ~ (comma ~ uident)? ~ comma?)?  ~ sr
+    sl ~ (uidents | (idents ~ default_value?) ~ (comma ~ (idents ~ default_value?))* ~ (comma ~ uidents)?)? ~ comma? ~ sr
 }
 
-index = {ml ~ expr ~ mr}
+default_value = {func_assign ~ line}
+
+index = { ml ~ expr ~ mr }
 slice = {
     ml ~ expr? ~ to ~ expr? ~ mr
 }
 
-//访问器
-just_ignore = {ignore}
-ignore = _{"_"}
+// 访问器
+just_ignore =  { ignore }
+ignore      = _{ "_" }
 
 ident = ${
     ("_" | "#" | 'a'..'z' | 'A'..'Z') ~ ("_" | "#" | 'a'..'z' | 'A'..'Z' | '0'..'9')*
 }
 
-uident = {unscope ~ ident}
+uidents = { unscope ~ idents }
 
 ignore_ident = @{
     ("_" | "#" | 'a'..'z' | 'A'..'Z') ~ ("_" | "#" | 'a'..'z' | 'A'..'Z' | '0'..'9')*
 }
 
-point = _{"."}
+point = _{ "." }
 
 acc = {
     point ~ ident
@@ -127,7 +129,7 @@ none_acc = {
     point ~ what
 }
 
-what = _{"?"}
+what = _{ "?" }
 
 idents = {
     ident ~ acc*
@@ -137,11 +139,11 @@ ignore_idents = _{
     ignore_ident ~ ignore_acc*
 }
 
-//字面量
-value = {number | string | array}
+// 字面量
+value = { number | string | array }
 
 array = {
-    ml ~ ((expr | uexpr) ~ ("," ~ (expr | uexpr))* ~ ","?)?  ~ mr
+    ml ~ ((expr) ~ ("," ~ (expr))* ~ ","?)? ~ mr
 }
 
 number = ${
@@ -149,63 +151,149 @@ number = ${
 }
 
 string = {
-    | squote ~ s_text ~ squote
-    | dquote ~ d_text ~ dquote
+  
+  | raw
+  | escape
+  | backtick
 }
 
-s_text = {(escape_squote | !squote ~ ANY)*}
-d_text = {(escape_dquote | !dquote ~ ANY)*}
+raw      = { squote ~ s_text ~ squote }
+escape   = { dquote ~ d_text ~ dquote }
+backtick = { bquote ~ b_text ~ bquote }
 
-squote = _{"'"}
-dquote = _{"\""}
-escape_squote = {"\\'"}
-escape_dquote = {"\\\""}
+b_text = { (to_eval | escape_bquote | !bquote ~ ANY)* }
+s_text = { (!squote ~ ANY)* }
+d_text = { (escape_dquote | !dquote ~ ANY)* }
 
-//try|guard
-try_op = _{"!!"}
-arrow = _{"=>"}
-guard_op = _{"|"}
-next_op = _{">>"}
+bquote = _{ "`" }
+squote = _{ "'" }
+dquote = _{ "\"" }
 
-//unscope
-unscope = _{"..."}
-uexpr = {
-    unscope ~ expr
+escape_bquote = { "\\`" }
+escape_dquote = { "\\\"" }
+
+to_eval = {
+    to_eval_head ~ (line ~ comma?)* ~ lr
 }
 
-//assign
+to_eval_head = _{
+    "${"
+}
+
+// try|guard
+try_op   = _{ "!!" }
+arrow    = _{ "=>" }
+guard_op = _{ "|" }
+next_op  = _{ ">>" }
+
+// unscope
+unscope = _{ "..." }
+
+// assign
 assign = {
-    | "="
-    | "+="
-    | "-="
-    | "*="
-    | "/="
-    | "%="
+  
+  | "="
+  | "+="
+  | "-="
+  | "*="
+  | "/="
+  | "%="
 }
 
-//decorator
-deco = {
+// decorator
+deco      =  {
     deco_head ~ idents ~ call_braket?
 }
 deco_head = _{
     "@"
 }
 
-//op
-sl = _{"("}
-sr = _{")"}
+// op
+sl = _{ "(" }
+sr = _{ ")" }
 
-ml = _{"["}
-mr = _{"]"}
+ml = _{ "[" }
+mr = _{ "]" }
 
-ll = _{"{"}
-lr = _{"}"}
+ll = _{ "{" }
+lr = _{ "}" }
 
-comma = _{","}
-to = _{":"}
+comma = _{ "," }
+to    = _{ ":" }
 
-//type_expr
+// type_expr
 type_expr = _{
-    | ignore_idents ~ (ml ~ (type_expr ~ (comma ~ type_expr)* ~ comma?)? ~ mr)?
-    | sl ~ (type_expr ~ (comma ~ type_expr)* ~ comma?)? ~ sr ~ func_assign ~ type_expr
+  | ignore_idents ~ ans ~ (ml ~ ans ~ (type_expr ~ ans ~ (comma ~ ans ~ type_expr)* ~ ans ~ comma?)? ~ ans ~ mr)?
+  | sl ~ ans ~ (type_expr ~ ans ~ (comma ~ ans ~ type_expr ~ ans)* ~ ans ~ comma?)? ~ ans ~ sr ~ ans ~ func_assign ~ ans ~ type_expr
+}
+
+// operate
+expr = {
+    uepxr
+}
+
+pow = {
+    base_expr ~ ("**" ~ base_expr)*
+}
+
+neg = {
+    "-" ~ pow
+}
+
+term = {
+    (neg | pow) ~ (("*" | "/" | "%") ~ (neg | pow))*
+}
+
+factor = {
+    term ~ (("+" | "-") ~ term)*
+}
+
+camp = {
+    factor ~ ((">=" | "==" | "<=" | "<" | ">" | "!=") ~ factor)*
+}
+
+bool_op = {
+  
+  | camp ~ (("&&" | "||") ~ camp)*
+  | "!" ~ camp
+}
+
+dollar = {
+    bool_op ~ ("$" ~ bool_op)*
+}
+
+pair = {
+    dollar ~ ("->" ~ dollar)*
+}
+
+uepxr = {
+  | pair
+  | unscope ~ pair
+}
+
+op_to_func = {
+    sl ~ ops ~ sr
+}
+
+ops = {
+  | "+"
+  | "-"
+  | "*"
+  | "/"
+  | "%"
+  | "=="
+  | "!="
+  | ">="
+  | "<="
+  | ">"
+  | "<"
+  | "&&"
+  | "||"
+  | "!"
+  | "**"
+  | "<-"
+  | "->"
+  | "$"
+  | "//"
+  | "??"
 }
